@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext", // ✅ switch from commonjs
+    "moduleResolution": "bundler", // ✅ ensures clean ESM behavior
+    "rootDir": "src",
+    "outDir": "dist",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}
