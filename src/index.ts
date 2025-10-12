@@ -11,6 +11,7 @@ import helmet from "helmet";
 import mongoose from "mongoose";
 import morgan from "morgan";
 
+// Modular routers
 import agentRouter from "./routes/agent.js";
 import dashboardRouter from "./routes/dashboard.js";
 import debugRouter from "./routes/debug.js";
@@ -23,11 +24,12 @@ const MONGO_URI =
 
 const app = express();
 
+// ✅ Middleware
 app.use(helmet());
 app.use(compression());
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: "http://localhost:3000", // Adjust for production
     credentials: true,
   })
 );
@@ -40,13 +42,28 @@ const limiter = rateLimit({
 });
 app.use("/api", limiter);
 
+// ✅ Routes
 app.use("/api/properties", propertiesRouter);
 app.use("/api", healthRouter);
 app.use("/api/agents", agentRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/debug", debugRouter);
 
-// ✅ Typed error handler with unknown fallback
+// ✅ Health check route
+app.get("/api/health", (_req, res) => {
+  const mongoState = mongoose.connection.readyState;
+  res.json({
+    mongoState, // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+    status:
+      mongoState === 1
+        ? "✅ MongoDB connected"
+        : mongoState === 2
+        ? "⏳ Connecting..."
+        : "❌ Not connected",
+  });
+});
+
+// ✅ Error handler
 app.use((err: unknown, _req: Request, res: Response) => {
   console.error("❌ Uncaught error:", err);
   res.status(500).json({
@@ -55,17 +72,23 @@ app.use((err: unknown, _req: Request, res: Response) => {
   });
 });
 
-mongoose
-  .connect(MONGO_URI)
-  .then(() => {
-    console.log("✅ Connected to MongoDB");
+// ✅ MongoDB connection with retry logic
+async function connectWithRetry(attempt = 1): Promise<void> {
+  try {
+    await mongoose.connect(MONGO_URI);
+    console.log("✅ MongoDB connected");
+
     app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);
     });
-  })
-  .catch((err) => {
-    console.error("❌ MongoDB connection failed:", err);
-    process.exit(1);
-  });
+  } catch (err) {
+    console.error(
+      `❌ MongoDB connection failed (attempt ${attempt}). Retrying in 5s...`
+    );
+    setTimeout(() => connectWithRetry(attempt + 1), 5000);
+  }
+}
+
+connectWithRetry();
 
 export {};
