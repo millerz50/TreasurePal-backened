@@ -1,14 +1,14 @@
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import cookie from "cookie";
 import express from "express";
-import type { JwtPayload } from "jsonwebtoken";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import nodemailer from "nodemailer";
 import { AuthenticatedRequest, verifyToken } from "../middleware/auth.js";
-import Agent from "../models/Agent.js";
 
 const router = express.Router();
+const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 
 // 🖼️ Image Upload (in-memory)
@@ -23,45 +23,26 @@ const generateUserId = (): string => {
   return `${prefix}-${randomPart}-${numericPart}`;
 };
 
+// 🔐 Login
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
-  console.log("📨 Incoming login request:", { email, password });
-
   try {
     if (!email || !password) {
       return res.status(400).json({ error: "Email and password required" });
     }
 
-    console.log(
-      "🔍 Char codes:",
-      [...password].map((c) => c.charCodeAt(0))
-    );
-
-    const agent = await Agent.findOne({ email }).select("+password");
-
-    if (!agent) {
-      console.log("❌ Agent not found:", email);
-      return res.status(404).json({ error: "Agent not found" });
-    }
-
-    console.log("🔐 Stored hash:", agent.password);
+    const agent = await prisma.agent.findUnique({ where: { email } });
+    if (!agent) return res.status(404).json({ error: "Agent not found" });
 
     const isMatch = await bcrypt.compare(password.trim(), agent.password);
-    console.log("✅ Password match:", isMatch);
+    if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
 
-    if (!isMatch) {
-      console.log("❌ Invalid password for:", email);
-      return res.status(401).json({ error: "Invalid credentials" });
-    }
-
-    // ✅ Generate JWT token
     const token = jwt.sign(
       { userId: agent.userId, role: agent.role },
       JWT_SECRET,
       { expiresIn: "2h" }
     );
 
-    // ✅ Set cookie
     res.setHeader(
       "Set-Cookie",
       cookie.serialize("auth_token", token, {
@@ -73,8 +54,7 @@ router.post("/login", async (req, res) => {
       })
     );
 
-    console.log("✅ Login successful for:", email);
-    return res.status(200).json({
+    res.status(200).json({
       message: "Login successful",
       agent: {
         email: agent.email,
@@ -84,23 +64,24 @@ router.post("/login", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("🔥 Login error:", err);
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return res.status(500).json({ error: "Server error", details: message });
+    res.status(500).json({ error: "Server error", details: String(err) });
   }
 });
 
-// 🧩 Debug Registration Route (moved OUTSIDE login)
+// 🧪 Debug Registration
 router.post("/debug/register", async (req, res) => {
   try {
     const { email, password, ...rest } = req.body;
-
     const hashedPassword = await bcrypt.hash(password, 10);
-    const agent = new Agent({ ...rest, email, password: hashedPassword });
-    await agent.save();
 
-    console.log("✅ Registered agent:", agent.email);
-    console.log("🔐 Stored password hash:", agent.password);
+    const agent = await prisma.agent.create({
+      data: {
+        ...rest,
+        email,
+        password: hashedPassword,
+        userId: generateUserId(),
+      },
+    });
 
     res.status(201).json({
       message: "Debug registration successful",
@@ -111,25 +92,30 @@ router.post("/debug/register", async (req, res) => {
         isHashed: agent.password.startsWith("$2b$"),
       },
     });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("❌ Debug registration failed:", message);
+  } catch (err) {
     res
       .status(400)
-      .json({ error: "Debug registration failed", details: message });
+      .json({ error: "Debug registration failed", details: String(err) });
   }
 });
 
-// 🙋‍♂️ Get Authenticated Agent
+// 👤 Get Authenticated Agent
 router.get("/me", verifyToken, async (req: AuthenticatedRequest, res) => {
-  if (!req.agent || typeof req.agent !== "object" || !("userId" in req.agent)) {
+  const payload = req.agent;
+
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    !("userId" in payload) ||
+    typeof payload.userId !== "string"
+  ) {
     return res.status(403).json({ error: "Invalid or missing token payload" });
   }
 
-  const { userId } = req.agent as JwtPayload;
+  const { userId } = payload;
 
   try {
-    const agent = await Agent.findOne({ userId });
+    const agent = await prisma.agent.findUnique({ where: { userId } });
     if (!agent) return res.status(404).json({ error: "Agent not found" });
 
     res.status(200).json({
@@ -141,32 +127,32 @@ router.get("/me", verifyToken, async (req: AuthenticatedRequest, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ /me error:", err);
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: "Server error", details: message });
+    res.status(500).json({ error: "Server error", details: String(err) });
   }
 });
+
+// 🆕 Create Agent
 router.post("/create", upload.single("image"), async (req, res) => {
   try {
     const { firstName, surname, email, nationalId, password, status } =
       req.body;
 
-    const existing = await Agent.findOne({ email });
+    const existing = await prisma.agent.findUnique({ where: { email } });
     if (existing)
       return res.status(409).json({ error: "Email already in use" });
 
-    const newAgent = new Agent({
-      firstName,
-      surname,
-      email,
-      nationalId,
-      password, // ✅ raw password only
-      status,
-      userId: generateUserId(),
-      imageUrl: req.file ? req.file.originalname : undefined,
+    const newAgent = await prisma.agent.create({
+      data: {
+        firstName,
+        surname,
+        email,
+        nationalId,
+        password: await bcrypt.hash(password, 10),
+        status,
+        userId: generateUserId(),
+        imageUrl: req.file?.originalname,
+      },
     });
-
-    await newAgent.save(); // ✅ schema will hash it once
 
     res.status(201).json({
       message: "Agent created",
@@ -179,9 +165,7 @@ router.post("/create", upload.single("image"), async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ Agent creation failed:", err);
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(400).json({ message: "Validation error", error: message });
+    res.status(400).json({ message: "Validation error", error: String(err) });
   }
 });
 
@@ -191,12 +175,10 @@ router.put("/update/:userId", async (req, res) => {
     const { userId } = req.params;
     const updates = req.body;
 
-    const agent = await Agent.findOneAndUpdate({ userId }, updates, {
-      new: true,
-      runValidators: true,
+    const agent = await prisma.agent.update({
+      where: { userId },
+      data: updates,
     });
-
-    if (!agent) return res.status(404).json({ error: "Agent not found" });
 
     res.status(200).json({
       message: "Agent updated",
@@ -208,9 +190,7 @@ router.put("/update/:userId", async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("❌ Update error:", err);
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(400).json({ error: "Update failed", details: message });
+    res.status(400).json({ error: "Update failed", details: String(err) });
   }
 });
 
@@ -218,32 +198,26 @@ router.put("/update/:userId", async (req, res) => {
 router.delete("/delete/:userId", async (req, res) => {
   try {
     const { userId } = req.params;
-    const agent = await Agent.findOneAndDelete({ userId });
 
-    if (!agent) return res.status(404).json({ error: "Agent not found" });
-
+    await prisma.agent.delete({ where: { userId } });
     res.status(200).json({ message: "Agent deleted", userId });
   } catch (err) {
-    console.error("❌ Deletion error:", err);
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: "Deletion failed", details: message });
+    res.status(500).json({ error: "Deletion failed", details: String(err) });
   }
 });
 
 // 📋 Get All Agents
 router.get("/all", async (_req, res) => {
   try {
-    const agents = await Agent.find();
+    const agents = await prisma.agent.findMany();
     res.json(agents);
   } catch (err) {
-    console.error("❌ Fetch all error:", err);
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ message: "Server error", error: message });
+    res.status(500).json({ message: "Server error", error: String(err) });
   }
 });
 
 // ✉️ Send OTP
-const otpStore = new Map(); // Replace with DB in production
+const otpStore = new Map<string, { otp: string; expires: number }>();
 
 router.post("/otp/send", async (req, res) => {
   const { email } = req.body;
@@ -270,7 +244,6 @@ router.post("/otp/send", async (req, res) => {
 
     res.status(200).json({ message: "OTP sent via email." });
   } catch (err) {
-    console.error("Email error:", err);
     res.status(500).json({ error: "Failed to send OTP via email." });
   }
 });

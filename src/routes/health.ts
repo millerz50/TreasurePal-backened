@@ -1,16 +1,26 @@
+import { PrismaClient } from "@prisma/client";
 import { Router } from "express";
-import mongoose from "mongoose";
 
 const router = Router();
+const prisma = new PrismaClient();
 
-router.get("/health", (req, res) => {
-  const mongoStatus =
-    mongoose.connection.readyState === 1 ? "connected" : "disconnected";
-  res.json({
-    status: "ok",
-    mongo: mongoStatus,
-    timestamp: new Date().toISOString(),
-  });
+router.get("/health", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+
+    res.json({
+      status: "ok",
+      db: "connected",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: "error",
+      db: "disconnected",
+      timestamp: new Date().toISOString(),
+      details: String(err),
+    });
+  }
 });
 
 export default router;

@@ -1,13 +1,22 @@
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import { Request, Response } from "express";
-import Agent from "../models/Agent";
 
+const prisma = new PrismaClient();
+
+// ✅ Register Agent
 export const registerAgent = async (req: Request, res: Response) => {
   try {
     const { password, ...rest } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
-    const agent = new Agent({ ...rest, password: hashedPassword });
-    await agent.save();
+
+    const agent = await prisma.agent.create({
+      data: {
+        ...rest,
+        password: hashedPassword,
+      },
+    });
+
     res.status(201).json(agent);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -15,9 +24,10 @@ export const registerAgent = async (req: Request, res: Response) => {
   }
 };
 
+// ✅ Get All Agents
 export const getAgents = async (_req: Request, res: Response) => {
   try {
-    const agents = await Agent.find();
+    const agents = await prisma.agent.findMany();
     res.json(agents);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -25,9 +35,12 @@ export const getAgents = async (_req: Request, res: Response) => {
   }
 };
 
+// ✅ Get Agent by ID
 export const getAgentById = async (req: Request, res: Response) => {
   try {
-    const agent = await Agent.findById(req.params.id);
+    const id = parseInt(req.params.id, 10);
+    const agent = await prisma.agent.findUnique({ where: { id } });
+
     if (!agent) return res.status(404).json({ error: "Agent not found" });
     res.json(agent);
   } catch (err: unknown) {
@@ -36,13 +49,15 @@ export const getAgentById = async (req: Request, res: Response) => {
   }
 };
 
+// ✅ Update Agent
 export const updateAgent = async (req: Request, res: Response) => {
   try {
-    const updated = await Agent.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
+    const id = parseInt(req.params.id, 10);
+    const updated = await prisma.agent.update({
+      where: { id },
+      data: req.body,
     });
-    if (!updated) return res.status(404).json({ error: "Agent not found" });
+
     res.json(updated);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -50,10 +65,11 @@ export const updateAgent = async (req: Request, res: Response) => {
   }
 };
 
+// ✅ Delete Agent
 export const deleteAgent = async (req: Request, res: Response) => {
   try {
-    const result = await Agent.findByIdAndDelete(req.params.id);
-    if (!result) return res.status(404).json({ error: "Agent not found" });
+    const id = parseInt(req.params.id, 10);
+    await prisma.agent.delete({ where: { id } });
     res.status(204).send();
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -61,6 +77,7 @@ export const deleteAgent = async (req: Request, res: Response) => {
   }
 };
 
+// ✅ Verify Agent
 export const verifyAgent = async (req: Request, res: Response) => {
   const { email } = req.body;
   const imageUrl = req.file?.path;
@@ -70,19 +87,21 @@ export const verifyAgent = async (req: Request, res: Response) => {
   }
 
   try {
-    const agent = await Agent.findOneAndUpdate(
-      { email },
-      {
+    const agent = await prisma.agent.updateMany({
+      where: { email },
+      data: {
         imageUrl,
         emailVerified: true,
         status: "Verified",
       },
-      { new: true }
-    );
+    });
 
-    if (!agent) return res.status(404).json({ error: "Agent not found" });
+    if (agent.count === 0) {
+      return res.status(404).json({ error: "Agent not found" });
+    }
 
-    res.json({ message: "Agent verified successfully", agent });
+    const updated = await prisma.agent.findUnique({ where: { email } });
+    res.json({ message: "Agent verified successfully", agent: updated });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     res.status(500).json({ error: "Verification failed", details: message });
