@@ -5,7 +5,7 @@
   "main": "src/index.ts",
   "scripts": {
     "dev": "nodemon --watch src --ext ts,json --exec \"node --loader ts-node/esm\" src/index.ts",
-    "start": "ts-node src/index.ts"
+    "start": "node loader.mjs"
   },
   "keywords": [],
   "author": "",
