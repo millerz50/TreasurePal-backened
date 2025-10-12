@@ -1,21 +1,23 @@
 import { PrismaClient } from "@prisma/client";
-import { Router } from "express";
+import { Request, Response, Router } from "express";
 
 const router = Router();
 const prisma = new PrismaClient();
 
 // ✅ Get all properties
-router.get("/all", async (_req, res) => {
+router.get("/all", async (_req: Request, res: Response) => {
   try {
     const properties = await prisma.property.findMany({
       include: { agent: true },
     });
 
-    const formatted = properties.map((p) => ({
-      ...p,
-      amenities: p.amenities.split(","),
-      coordinates: p.coordinates.split(",").map(Number),
-    }));
+    const formatted = properties.map(
+      (p: { amenities: string; coordinates: string; [key: string]: any }) => ({
+        ...p,
+        amenities: p.amenities.split(","),
+        coordinates: p.coordinates.split(",").map(Number),
+      })
+    );
 
     res.json(formatted);
   } catch (err: unknown) {
@@ -28,7 +30,7 @@ router.get("/all", async (_req, res) => {
 });
 
 // ✅ Get a property by ID
-router.get("/:id", async (req, res) => {
+router.get("/:id", async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
     const property = await prisma.property.findUnique({ where: { id } });
@@ -52,7 +54,7 @@ router.get("/:id", async (req, res) => {
 });
 
 // ✅ Create a new property
-router.post("/add", async (req, res) => {
+router.post("/add", async (req: Request, res: Response) => {
   try {
     const { amenities, coordinates, ...rest } = req.body;
 
@@ -75,7 +77,7 @@ router.post("/add", async (req, res) => {
 });
 
 // ✅ Update a property by ID
-router.put("/:id", async (req, res) => {
+router.put("/:id", async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
     const { amenities, coordinates, ...rest } = req.body;
@@ -100,7 +102,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // ✅ Delete a property by ID
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id, 10);
     await prisma.property.delete({ where: { id } });
