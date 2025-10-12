@@ -59,7 +59,9 @@ app.get("/api/health", async (_req, res) => {
 });
 
 // ✅ Error handler
-app.use((err: unknown, _req: Request, res: Response) => {
+import { NextFunction } from "express";
+
+app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   console.error("❌ Uncaught error:", err);
   res.status(500).json({
     error: "Internal server error",
