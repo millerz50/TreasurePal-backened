@@ -4,8 +4,8 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
-    "dev": "nodemon --watch src --ext ts,json --exec \"node --loader ts-node/esm\" src/index.ts",
-    "start": "node loader.mjs"
+    "build": "tsc",
+    "start": "node dist/index.js"
   },
   "keywords": [],
   "author": "",
