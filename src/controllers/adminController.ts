@@ -1,7 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
+import { hashPassword } from "../utils/hashPassword.js"; // ✅ Ensure this exists and is compiled
+
 const prisma = new PrismaClient();
 
+// ✅ Approve a blog post
 export const approveBlogPost = async (
   req: Request,
   res: Response
@@ -23,6 +26,51 @@ export const approveBlogPost = async (
   }
 };
 
+// ✅ Create a new admin
+export const createAdmin = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { firstName, surname, email, password } = req.body;
+
+    if (!firstName || !surname || !email || !password) {
+      res.status(400).json({ error: "All fields are required" });
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase();
+
+    const existing = await prisma.admin.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (existing) {
+      res.status(409).json({ error: "Admin already exists" });
+      return;
+    }
+
+    const hashedPassword = await hashPassword(password);
+
+    const admin = await prisma.admin.create({
+      data: {
+        firstName,
+        surname,
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: "admin",
+        status: "active",
+        emailVerified: false,
+      },
+    });
+
+    res.status(201).json({ admin });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ✅ Delete a user
 export const deleteUser = async (
   req: Request,
   res: Response
@@ -38,6 +86,7 @@ export const deleteUser = async (
   }
 };
 
+// ✅ Delete an agent
 export const deleteAgent = async (
   req: Request,
   res: Response
@@ -53,6 +102,7 @@ export const deleteAgent = async (
   }
 };
 
+// ✅ Delete a property
 export const deleteProperty = async (
   req: Request,
   res: Response
