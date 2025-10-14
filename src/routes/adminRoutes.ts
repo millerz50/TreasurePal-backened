@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   approveBlogPost,
+  createAdmin,
   deleteAgent,
   deleteProperty,
   deleteUser,
@@ -8,6 +9,7 @@ import {
 
 const router: Router = Router();
 
+router.post("/create", createAdmin); // ✅ Register the route
 router.post("/approve-blog", approveBlogPost);
 router.delete("/user/:id", deleteUser);
 router.delete("/agent/:id", deleteAgent);

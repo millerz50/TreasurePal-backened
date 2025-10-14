@@ -24,6 +24,7 @@ const PORT = parseInt(process.env.PORT || "4011", 10);
 const prisma = new PrismaClient();
 
 const app = express();
+app.set("trust proxy", true);
 
 // ✅ Middleware
 app.use(helmet());
@@ -51,6 +52,9 @@ app.use("/api/dashboard", dashboardRouter);
 app.use("/api/debug", debugRouter);
 app.use("/api/users", userRoutes);
 app.use("/api/admins", adminRoutes);
+
+app.use("/api/admins", adminRoutes);
+
 // ✅ Health check
 app.get("/api/health", async (_req, res) => {
   try {
