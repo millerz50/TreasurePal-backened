@@ -1,6 +1,7 @@
+import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
-import prisma from "../prisma/client";
-import { hashPassword } from "../utils/hashPassword";
+import { hashPassword } from "../utils/hashPassword.js";
+const prisma = new PrismaClient();
 
 export const signup = async (req: Request, res: Response): Promise<void> => {
   try {

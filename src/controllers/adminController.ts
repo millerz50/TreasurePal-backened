@@ -1,5 +1,6 @@
+import { PrismaClient } from "@prisma/client";
 import { Request, Response } from "express";
-import prisma from "../prisma/client.js";
+const prisma = new PrismaClient();
 
 export const approveBlogPost = async (
   req: Request,
@@ -7,6 +8,7 @@ export const approveBlogPost = async (
 ): Promise<void> => {
   try {
     const { postId, adminId } = req.body;
+
     const post = await prisma.blogPost.update({
       where: { id: postId },
       data: {
@@ -14,6 +16,7 @@ export const approveBlogPost = async (
         published: true,
       },
     });
+
     res.json({ post });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -25,7 +28,10 @@ export const deleteUser = async (
   res: Response
 ): Promise<void> => {
   try {
-    await prisma.user.delete({ where: { id: req.params.id } });
+    await prisma.user.delete({
+      where: { id: req.params.id },
+    });
+
     res.status(204).send();
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -37,7 +43,10 @@ export const deleteAgent = async (
   res: Response
 ): Promise<void> => {
   try {
-    await prisma.agent.delete({ where: { id: parseInt(req.params.id) } });
+    await prisma.agent.delete({
+      where: { id: parseInt(req.params.id) },
+    });
+
     res.status(204).send();
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -49,7 +58,10 @@ export const deleteProperty = async (
   res: Response
 ): Promise<void> => {
   try {
-    await prisma.property.delete({ where: { id: parseInt(req.params.id) } });
+    await prisma.property.delete({
+      where: { id: parseInt(req.params.id) },
+    });
+
     res.status(204).send();
   } catch (err: any) {
     res.status(500).json({ error: err.message });
