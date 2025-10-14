@@ -12,11 +12,13 @@ import helmet from "helmet";
 import morgan from "morgan";
 
 // Modular routers
+import adminRoutes from "./routes/adminRoutes.js";
 import agentRouter from "./routes/agent.js";
 import dashboardRouter from "./routes/dashboard.js";
 import debugRouter from "./routes/debug.js";
 import healthRouter from "./routes/health.js";
 import propertiesRouter from "./routes/properties.js";
+import userRoutes from "./routes/userRoutes.js";
 
 const PORT = parseInt(process.env.PORT || "4011", 10);
 const prisma = new PrismaClient();
@@ -47,7 +49,8 @@ app.use("/api", healthRouter);
 app.use("/api/agents", agentRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/debug", debugRouter);
-
+app.use("/api/users", userRoutes);
+app.use("/api/admins", adminRoutes);
 // ✅ Health check
 app.get("/api/health", async (_req, res) => {
   try {
