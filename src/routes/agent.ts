@@ -2,21 +2,30 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import cookie from "cookie";
 import express from "express";
-import jwt from "jsonwebtoken";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
+import jwt, { JwtPayload } from "jsonwebtoken";
 import multer from "multer";
 import nodemailer from "nodemailer";
+import { storage } from "../../lib/firebase";
 import { AuthenticatedRequest, verifyToken } from "../middleware/auth.js";
 
 const router = express.Router();
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 
-// 🖼️ Image Upload (in-memory)
-const storage = multer.memoryStorage();
-const upload = multer({ storage });
+// 🖼️ Multer setup
+const upload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Only image files are allowed"));
+    }
+    cb(null, true);
+  },
+});
 
-// 🧬 User ID Generator
-const generateUserId = (): string => {
+// 🧬 Agent ID Generator
+const generateAgentId = (): string => {
   const prefix = "AG";
   const randomPart = Math.random().toString(36).substring(2, 8).toUpperCase();
   const numericPart = Math.floor(1000 + Math.random() * 9000);
@@ -38,7 +47,7 @@ router.post("/login", async (req, res) => {
     if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
 
     const token = jwt.sign(
-      { userId: agent.userId, role: agent.role },
+      { agentId: agent.agentId, role: agent.role },
       JWT_SECRET,
       { expiresIn: "2h" }
     );
@@ -58,7 +67,7 @@ router.post("/login", async (req, res) => {
       message: "Login successful",
       agent: {
         email: agent.email,
-        userId: agent.userId,
+        agentId: agent.agentId,
         role: agent.role,
         status: agent.status,
       },
@@ -79,7 +88,7 @@ router.post("/debug/register", async (req, res) => {
         ...rest,
         email,
         password: hashedPassword,
-        userId: generateUserId(),
+        agentId: generateAgentId(),
       },
     });
 
@@ -87,7 +96,7 @@ router.post("/debug/register", async (req, res) => {
       message: "Debug registration successful",
       agent: {
         email: agent.email,
-        userId: agent.userId,
+        agentId: agent.agentId,
         passwordHash: agent.password,
         isHashed: agent.password.startsWith("$2b$"),
       },
@@ -103,35 +112,30 @@ router.post("/debug/register", async (req, res) => {
 router.get("/me", verifyToken, async (req: AuthenticatedRequest, res) => {
   const payload = req.agent;
 
-  if (
-    !payload ||
-    typeof payload !== "object" ||
-    !("userId" in payload) ||
-    typeof payload.userId !== "string"
-  ) {
-    return res.status(403).json({ error: "Invalid or missing token payload" });
-  }
+  if (typeof payload === "object" && "agentId" in payload) {
+    const { agentId } = payload as JwtPayload & { agentId: string };
 
-  const { userId } = payload;
+    try {
+      const agent = await prisma.agent.findUnique({ where: { agentId } });
+      if (!agent) return res.status(404).json({ error: "Agent not found" });
 
-  try {
-    const agent = await prisma.agent.findUnique({ where: { userId } });
-    if (!agent) return res.status(404).json({ error: "Agent not found" });
-
-    res.status(200).json({
-      agent: {
-        email: agent.email,
-        userId: agent.userId,
-        role: agent.role,
-        status: agent.status,
-      },
-    });
-  } catch (err) {
-    res.status(500).json({ error: "Server error", details: String(err) });
+      res.status(200).json({
+        agent: {
+          email: agent.email,
+          agentId: agent.agentId,
+          role: agent.role,
+          status: agent.status,
+        },
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Server error", details: String(err) });
+    }
+  } else {
+    res.status(403).json({ error: "Invalid or missing token payload" });
   }
 });
 
-// 🆕 Create Agent
+// 🆕 Create Agent with Firebase Image Upload
 router.post("/create", upload.single("image"), async (req, res) => {
   try {
     const { firstName, surname, email, nationalId, password, status } =
@@ -141,6 +145,16 @@ router.post("/create", upload.single("image"), async (req, res) => {
     if (existing)
       return res.status(409).json({ error: "Email already in use" });
 
+    let imageUrl = null;
+    if (req.file) {
+      const imageRef = ref(
+        storage,
+        `agents/${Date.now()}_${req.file.originalname}`
+      );
+      const snapshot = await uploadBytes(imageRef, req.file.buffer);
+      imageUrl = await getDownloadURL(snapshot.ref);
+    }
+
     const newAgent = await prisma.agent.create({
       data: {
         firstName,
@@ -149,8 +163,8 @@ router.post("/create", upload.single("image"), async (req, res) => {
         nationalId,
         password: await bcrypt.hash(password, 10),
         status,
-        userId: generateUserId(),
-        imageUrl: req.file?.originalname,
+        agentId: generateAgentId(),
+        imageUrl,
       },
     });
 
@@ -158,7 +172,7 @@ router.post("/create", upload.single("image"), async (req, res) => {
       message: "Agent created",
       agent: {
         email: newAgent.email,
-        userId: newAgent.userId,
+        agentId: newAgent.agentId,
         role: newAgent.role,
         status: newAgent.status,
         imageUrl: newAgent.imageUrl,
@@ -170,13 +184,13 @@ router.post("/create", upload.single("image"), async (req, res) => {
 });
 
 // ✏️ Update Agent
-router.put("/update/:userId", async (req, res) => {
+router.put("/update/:agentId", async (req, res) => {
   try {
-    const { userId } = req.params;
+    const { agentId } = req.params;
     const updates = req.body;
 
     const agent = await prisma.agent.update({
-      where: { userId },
+      where: { agentId },
       data: updates,
     });
 
@@ -184,7 +198,7 @@ router.put("/update/:userId", async (req, res) => {
       message: "Agent updated",
       agent: {
         email: agent.email,
-        userId: agent.userId,
+        agentId: agent.agentId,
         role: agent.role,
         status: agent.status,
       },
@@ -195,12 +209,11 @@ router.put("/update/:userId", async (req, res) => {
 });
 
 // 🗑️ Delete Agent
-router.delete("/delete/:userId", async (req, res) => {
+router.delete("/delete/:agentId", async (req, res) => {
   try {
-    const { userId } = req.params;
-
-    await prisma.agent.delete({ where: { userId } });
-    res.status(200).json({ message: "Agent deleted", userId });
+    const { agentId } = req.params;
+    await prisma.agent.delete({ where: { agentId } });
+    res.status(200).json({ message: "Agent deleted", agentId });
   } catch (err) {
     res.status(500).json({ error: "Deletion failed", details: String(err) });
   }
@@ -244,8 +257,33 @@ router.post("/otp/send", async (req, res) => {
 
     res.status(200).json({ message: "OTP sent via email." });
   } catch (err) {
-    res.status(500).json({ error: "Failed to send OTP via email." });
+    res
+      .status(500)
+      .json({ error: "Failed to send OTP via email.", details: String(err) });
   }
+});
+
+// ✅ Verify OTP
+router.post("/otp/verify", async (req, res) => {
+  const { email, otp } = req.body;
+  const record = otpStore.get(email);
+
+  if (!record) {
+    return res.status(400).json({ error: "No OTP found for this email." });
+  }
+
+  if (Date.now() > record.expires) {
+    otpStore.delete(email);
+    return res.status(400).json({ error: "OTP has expired." });
+  }
+
+  if (record.otp !== otp) {
+    return res.status(401).json({ error: "Invalid OTP." });
+  }
+
+  otpStore.delete(email);
+  otpStore.delete(email);
+  res.status(200).json({ message: "OTP verified successfully." });
 });
 
 export default router;

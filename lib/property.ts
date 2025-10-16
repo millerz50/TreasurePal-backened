@@ -19,7 +19,7 @@ export async function createProperty(data: {
   rooms?: number;
   amenities?: string[];
   coordinates: [number, number];
-  agentId: number;
+  agentId: string;
 }): Promise<Property> {
   const property = await prisma.property.create({
     data: {
@@ -34,7 +34,7 @@ export async function createProperty(data: {
       amenities: (data.amenities || []).join(","),
       coordinates: data.coordinates.join(","),
       agent: {
-        connect: { id: data.agentId },
+        connect: { agentId: data.agentId }, // ✅ Correct relation syntax
       },
     },
   });
@@ -58,11 +58,23 @@ export function formatProperty(property: Property): {
   viewsThisWeek: number;
   createdAt: Date;
   updatedAt: Date;
-  agentId: number;
+  agentId: string;
 } {
   return {
-    ...property,
+    id: property.id,
+    title: property.title,
+    description: property.description,
+    price: property.price,
+    type: property.type,
+    status: property.status,
+    location: property.location,
+    address: property.address,
+    rooms: property.rooms,
     amenities: property.amenities.split(","),
     coordinates: property.coordinates.split(",").map(Number),
+    viewsThisWeek: 0, // Placeholder—can be replaced with actual logic
+    createdAt: property.createdAt,
+    updatedAt: property.updatedAt,
+    agentId: property.agentId, // ✅ Must be string
   };
 }
