@@ -48,7 +48,7 @@ router.post("/login", async (req, res) => {
       cookie.serialize("auth_token", token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
+        sameSite: "none",
         maxAge: 2 * 60 * 60,
         path: "/",
       })
