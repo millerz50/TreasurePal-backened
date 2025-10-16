@@ -45,7 +45,7 @@ model Agent {
   surname       String
   email         String     @unique
   nationalId    String
-  userId        String     @unique
+  agentId        String     @unique
   role          String     @default("agent")
   status        String     @default("Not Verified")
   imageUrl      String?
