@@ -35,7 +35,12 @@ app.use(
     credentials: true,
   })
 );
+app.set("trust proxy", 1);
+
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use("/api/json", express.json());
+
 app.use(morgan("dev"));
 
 const limiter = rateLimit({
