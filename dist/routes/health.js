@@ -1,0 +1,23 @@
+import { PrismaClient } from "@prisma/client";
+import { Router } from "express";
+const router = Router();
+const prisma = new PrismaClient();
+router.get("/health", async (_req, res) => {
+    try {
+        await prisma.$queryRaw `SELECT 1`;
+        res.json({
+            status: "ok",
+            db: "connected",
+            timestamp: new Date().toISOString(),
+        });
+    }
+    catch (err) {
+        res.status(500).json({
+            status: "error",
+            db: "disconnected",
+            timestamp: new Date().toISOString(),
+            details: String(err),
+        });
+    }
+});
+export default router;
