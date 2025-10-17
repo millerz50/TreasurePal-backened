@@ -154,6 +154,9 @@ router.post("/create", upload.single("image"), async (req, res) => {
       const snapshot = await uploadBytes(imageRef, req.file.buffer);
       imageUrl = await getDownloadURL(snapshot.ref);
     }
+    if (!firstName || !surname || !email || !nationalId || !password) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
 
     const newAgent = await prisma.agent.create({
       data: {

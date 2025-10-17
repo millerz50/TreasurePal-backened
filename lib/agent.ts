@@ -28,7 +28,7 @@ export async function createAgent(data: {
     data: {
       ...data,
       password: hashedPassword,
-      userId: generateUserId(),
+      agentId: generateUserId(),
     },
   });
 }

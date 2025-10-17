@@ -7,8 +7,8 @@ import {
 
 const prisma = new PrismaClient();
 
-// ✅ Create Property
-export async function createProperty(data: {
+// ✅ TypeScript Interface for Compile-Time Safety
+export interface CreatePropertyInput {
   title: string;
   description?: string;
   price: string;
@@ -20,7 +20,12 @@ export async function createProperty(data: {
   amenities?: string[];
   coordinates: [number, number];
   agentId: string;
-}): Promise<Property> {
+}
+
+// ✅ Create Property
+export async function createProperty(
+  data: CreatePropertyInput
+): Promise<Property> {
   const property = await prisma.property.create({
     data: {
       title: data.title,
@@ -34,7 +39,7 @@ export async function createProperty(data: {
       amenities: (data.amenities || []).join(","),
       coordinates: data.coordinates.join(","),
       agent: {
-        connect: { agentId: data.agentId }, // ✅ Correct relation syntax
+        connect: { agentId: data.agentId }, // ✅ Correct relation
       },
     },
   });
@@ -75,6 +80,6 @@ export function formatProperty(property: Property): {
     viewsThisWeek: 0, // Placeholder—can be replaced with actual logic
     createdAt: property.createdAt,
     updatedAt: property.updatedAt,
-    agentId: property.agentId, // ✅ Must be string
+    agentId: property.agentId,
   };
 }

@@ -45,7 +45,7 @@ model Agent {
   surname       String
   email         String     @unique
   nationalId    String
-  agentId        String     @unique
+  agentId       String     @unique
   role          String     @default("agent")
   status        String     @default("Not Verified")
   imageUrl      String?
@@ -89,8 +89,8 @@ model Property {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime
   imageUrl      String?
-  agentId       Int
-  agent         Agent          @relation(fields: [agentId], references: [id])
+  agentId       String
+  agent         Agent          @relation(fields: [agentId], references: [agentId])
   likedByUsers  User[]         @relation("LikedProperties")
 }
 
@@ -113,3 +113,5 @@ enum PropertyStatus {
   For_Sale
   For_Rent
 }
+
+
