@@ -8,12 +8,31 @@ import { hashPassword } from "../utils/hashPassword.js";
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 
+//
 // 🔐 Signup
-
-export const signup = async (req: Request, res: Response): Promise<void> => {
+//
+export const signup = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
   try {
     const { name, surname, email, password, dob, occupation, avatarUrl } =
       req.body;
+
+    if (!name || !surname || !email || !password || !dob || !occupation) {
+      return res.status(400).json({
+        error: "Missing required fields",
+        fields: { name, surname, email, password, dob, occupation },
+      });
+    }
+
+    const existing = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (existing) {
+      return res.status(409).json({ error: "Email already registered" });
+    }
 
     const user = await prisma.user.create({
       data: {
@@ -29,7 +48,7 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       user: {
         name: user.name,
         avatarUrl: user.avatarUrl,
@@ -38,19 +57,31 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (err: any) {
     console.error("❌ Signup error:", err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({
+      error: "Internal server error",
+      details: err instanceof Error ? err.message : String(err),
+    });
   }
 };
 
+//
 // 🔐 Login
-export const loginUser = async (req: Request, res: Response): Promise<void> => {
+//
+export const loginUser = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
   try {
     const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password required" });
+    }
+
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      res.status(401).json({ error: "Invalid credentials" });
-      return;
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: "7d" });
@@ -61,7 +92,7 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       sameSite: "strict",
     });
 
-    res.json({
+    return res.json({
       user: {
         name: user.name,
         avatarUrl: user.avatarUrl,
@@ -69,17 +100,24 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("❌ Login error:", err);
+    return res.status(500).json({ error: err.message });
   }
 };
 
+//
 // 🔐 SSR-compatible profile fetch
+//
 export const getUserProfile = async (
   req: Request,
   res: Response
-): Promise<void> => {
+): Promise<Response> => {
   try {
-    const userId = (req as any).agent.id;
+    const userId = (req as any).agent?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -91,21 +129,30 @@ export const getUserProfile = async (
     });
 
     if (!user) {
-      res.status(404).json({ error: "User not found" });
-      return;
+      return res.status(404).json({ error: "User not found" });
     }
 
-    res.json({ user });
+    return res.json({ user });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("❌ Profile fetch error:", err);
+    return res.status(500).json({ error: err.message });
   }
 };
 
+//
 // ✏️ Edit user
-export const editUser = async (req: Request, res: Response): Promise<void> => {
+//
+export const editUser = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
   try {
     const { id } = req.params;
     const updates = { ...req.body };
+
+    if (!id) {
+      return res.status(400).json({ error: "Missing user ID" });
+    }
 
     if (updates.password) {
       updates.password = await hashPassword(updates.password);
@@ -116,7 +163,7 @@ export const editUser = async (req: Request, res: Response): Promise<void> => {
       data: updates,
     });
 
-    res.json({
+    return res.json({
       user: {
         name: user.name,
         avatarUrl: user.avatarUrl,
@@ -124,20 +171,29 @@ export const editUser = async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("❌ Edit error:", err);
+    return res.status(500).json({ error: err.message });
   }
 };
 
+//
 // 🗑️ Delete user
+//
 export const deleteUser = async (
   req: Request,
   res: Response
-): Promise<void> => {
+): Promise<Response> => {
   try {
     const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({ error: "Missing user ID" });
+    }
+
     await prisma.user.delete({ where: { id } });
-    res.status(204).send();
+    return res.status(204).send();
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error("❌ Delete error:", err);
+    return res.status(500).json({ error: err.message });
   }
 };
