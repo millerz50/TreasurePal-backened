@@ -32,7 +32,7 @@ app.use(helmet());
 app.use(compression());
 
 //
-// ✅ Dynamic CORS with Express v5-safe preflight
+// ✅ Dynamic CORS (no wildcard crash)
 //
 const allowedOrigins = [
   "http://localhost:3000",
@@ -55,8 +55,7 @@ const corsOptions = {
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
-app.use(cors(corsOptions));
-app.options("/api/*", cors(corsOptions)); // ✅ Safe preflight route
+app.use(cors(corsOptions)); // ✅ Handles all CORS requests
 
 //
 // ✅ Body parsing
@@ -97,7 +96,7 @@ app.use("/api/user", userRoutes); // Optional alias
 app.get("/api/health", async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "✅ PostgreSQL connected" }); // Update this if using PostgreSQL
+    res.json({ status: "✅ PostgreSQL connected" }); // Update message to match your DB
   } catch (err) {
     res.status(500).json({ status: "❌ DB connection failed", error: err });
   }
