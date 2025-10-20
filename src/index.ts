@@ -6,12 +6,12 @@ dotenv.config({
 import { PrismaClient } from "@prisma/client";
 import compression from "compression";
 import cors from "cors";
-import express, { Request, Response } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import morgan from "morgan";
 
-// Modular routers
+// Routers
 import adminRoutes from "./routes/adminRoutes.js";
 import agentRouter from "./routes/agent.js";
 import dashboardRouter from "./routes/dashboard.js";
@@ -22,27 +22,41 @@ import userRoutes from "./routes/userRoutes.js";
 
 const PORT = parseInt(process.env.PORT || "4011", 10);
 const prisma = new PrismaClient();
-
 const app = express();
 app.set("trust proxy", true);
 
-// ✅ Middleware
+// ✅ Security + Performance
 app.use(helmet());
 app.use(compression());
+
+// ✅ Dynamic CORS
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://treasurepal.vercel.app",
+];
+
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
-app.set("trust proxy", 1);
 
+// ✅ Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/api/json", express.json());
 
+// ✅ Logging
 app.use(morgan("dev"));
 
+// ✅ Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -57,8 +71,7 @@ app.use("/api/dashboard", dashboardRouter);
 app.use("/api/debug", debugRouter);
 app.use("/api/users", userRoutes);
 app.use("/api/admins", adminRoutes);
-
-app.use("/api/user", userRoutes);
+app.use("/api/user", userRoutes); // Optional alias
 
 // ✅ Health check
 app.get("/api/health", async (_req, res) => {
@@ -71,8 +84,6 @@ app.get("/api/health", async (_req, res) => {
 });
 
 // ✅ Error handler
-import { NextFunction } from "express";
-
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   console.error("❌ Uncaught error:", err);
   res.status(500).json({
@@ -85,5 +96,3 @@ app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
-
-export {};
