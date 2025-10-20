@@ -12,10 +12,17 @@ import { validateUser } from "../validators/validateUser";
 
 const router: Router = Router();
 
-router.post("/signup", validateUser, signup);
-router.post("/login", validateLogin, loginUser); // 🔥 New login route
-router.get("/me", verifyToken, getUserProfile); // 🔥 SSR-compatible route
-router.put("/:id", verifyToken, validateUser, editUser);
+const isProd = process.env.NODE_ENV === "production";
+
+// Signup route
+router.post("/signup", isProd ? signup : [validateUser, signup]);
+
+// Login route
+router.post("/login", isProd ? loginUser : [validateLogin, loginUser]);
+
+// Protected routes
+router.get("/me", verifyToken, getUserProfile);
+router.put("/:id", verifyToken, isProd ? editUser : [validateUser, editUser]);
 router.delete("/:id", verifyToken, deleteUser);
 
 export default router;
