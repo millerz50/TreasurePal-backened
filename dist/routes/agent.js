@@ -1,19 +1,24 @@
-import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcrypt";
-import cookie from "cookie";
-import express from "express";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import jwt from "jsonwebtoken";
-import multer from "multer";
-import nodemailer from "nodemailer";
-import { storage } from "../../lib/firebase";
-import { verifyToken } from "../middleware/auth.js";
-const router = express.Router();
-const prisma = new PrismaClient();
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const client_1 = require("@prisma/client");
+const bcrypt_1 = __importDefault(require("bcrypt"));
+const cookie_1 = __importDefault(require("cookie"));
+const express_1 = __importDefault(require("express"));
+const storage_1 = require("firebase/storage");
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const multer_1 = __importDefault(require("multer"));
+const nodemailer_1 = __importDefault(require("nodemailer"));
+const firebase_1 = require("../lib/firebase");
+const auth_js_1 = require("../middleware/auth.js");
+const router = express_1.default.Router();
+const prisma = new client_1.PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 // 🖼️ Multer setup
-const upload = multer({
-    storage: multer.memoryStorage(),
+const upload = (0, multer_1.default)({
+    storage: multer_1.default.memoryStorage(),
     fileFilter: (_req, file, cb) => {
         if (!file.mimetype.startsWith("image/")) {
             return cb(new Error("Only image files are allowed"));
@@ -38,11 +43,11 @@ router.post("/login", async (req, res) => {
         const agent = await prisma.agent.findUnique({ where: { email } });
         if (!agent)
             return res.status(404).json({ error: "Agent not found" });
-        const isMatch = await bcrypt.compare(password.trim(), agent.password);
+        const isMatch = await bcrypt_1.default.compare(password.trim(), agent.password);
         if (!isMatch)
             return res.status(401).json({ error: "Invalid credentials" });
-        const token = jwt.sign({ agentId: agent.agentId, role: agent.role }, JWT_SECRET, { expiresIn: "2h" });
-        res.setHeader("Set-Cookie", cookie.serialize("auth_token", token, {
+        const token = jsonwebtoken_1.default.sign({ agentId: agent.agentId, role: agent.role }, JWT_SECRET, { expiresIn: "2h" });
+        res.setHeader("Set-Cookie", cookie_1.default.serialize("auth_token", token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: "none",
@@ -67,7 +72,7 @@ router.post("/login", async (req, res) => {
 router.post("/debug/register", async (req, res) => {
     try {
         const { email, password, ...rest } = req.body;
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt_1.default.hash(password, 10);
         const agent = await prisma.agent.create({
             data: {
                 ...rest,
@@ -93,7 +98,7 @@ router.post("/debug/register", async (req, res) => {
     }
 });
 // 👤 Get Authenticated Agent
-router.get("/me", verifyToken, async (req, res) => {
+router.get("/me", auth_js_1.verifyToken, async (req, res) => {
     const payload = req.agent;
     if (typeof payload === "object" && "agentId" in payload) {
         const { agentId } = payload;
@@ -130,9 +135,9 @@ router.post("/create", upload.single("image"), async (req, res) => {
             return res.status(409).json({ error: "Email already in use" });
         let imageUrl = null;
         if (req.file) {
-            const imageRef = ref(storage, `agents/${Date.now()}_${req.file.originalname}`);
-            const snapshot = await uploadBytes(imageRef, req.file.buffer);
-            imageUrl = await getDownloadURL(snapshot.ref);
+            const imageRef = (0, storage_1.ref)(firebase_1.storage, `agents/${Date.now()}_${req.file.originalname}`);
+            const snapshot = await (0, storage_1.uploadBytes)(imageRef, req.file.buffer);
+            imageUrl = await (0, storage_1.getDownloadURL)(snapshot.ref);
         }
         if (!firstName || !surname || !email || !nationalId || !password) {
             return res.status(400).json({ error: "Missing required fields" });
@@ -143,7 +148,7 @@ router.post("/create", upload.single("image"), async (req, res) => {
                 surname,
                 email,
                 nationalId,
-                password: await bcrypt.hash(password, 10),
+                password: await bcrypt_1.default.hash(password, 10),
                 status,
                 agentId: generateAgentId(),
                 imageUrl,
@@ -217,7 +222,7 @@ router.post("/otp/send", async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(email, { otp, expires: Date.now() + 5 * 60 * 1000 });
     try {
-        const transporter = nodemailer.createTransport({
+        const transporter = nodemailer_1.default.createTransport({
             service: "gmail",
             auth: {
                 user: process.env.EMAIL_USER,
@@ -256,4 +261,4 @@ router.post("/otp/verify", async (req, res) => {
     otpStore.delete(email);
     res.status(200).json({ message: "OTP verified successfully." });
 });
-export default router;
+exports.default = router;

@@ -1,8 +1,11 @@
-import { PrismaClient } from "@prisma/client";
-import { hashPassword } from "../utils/hashPassword.js"; // ✅ Ensure this exists and is compiled
-const prisma = new PrismaClient();
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.deleteProperty = exports.deleteAgent = exports.deleteUser = exports.createAdmin = exports.approveBlogPost = void 0;
+const client_1 = require("@prisma/client");
+const hashPassword_js_1 = require("../utils/hashPassword.js"); // ✅ Ensure this exists and is compiled
+const prisma = new client_1.PrismaClient();
 // ✅ Approve a blog post
-export const approveBlogPost = async (req, res) => {
+const approveBlogPost = async (req, res) => {
     try {
         const { postId, adminId } = req.body;
         const post = await prisma.blogPost.update({
@@ -18,8 +21,9 @@ export const approveBlogPost = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+exports.approveBlogPost = approveBlogPost;
 // ✅ Create a new admin
-export const createAdmin = async (req, res) => {
+const createAdmin = async (req, res) => {
     try {
         const { firstName, surname, email, password } = req.body;
         if (!firstName || !surname || !email || !password) {
@@ -34,7 +38,7 @@ export const createAdmin = async (req, res) => {
             res.status(409).json({ error: "Admin already exists" });
             return;
         }
-        const hashedPassword = await hashPassword(password);
+        const hashedPassword = await (0, hashPassword_js_1.hashPassword)(password);
         const admin = await prisma.admin.create({
             data: {
                 firstName,
@@ -52,8 +56,9 @@ export const createAdmin = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+exports.createAdmin = createAdmin;
 // ✅ Delete a user
-export const deleteUser = async (req, res) => {
+const deleteUser = async (req, res) => {
     try {
         await prisma.user.delete({
             where: { id: req.params.id },
@@ -64,8 +69,9 @@ export const deleteUser = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+exports.deleteUser = deleteUser;
 // ✅ Delete an agent
-export const deleteAgent = async (req, res) => {
+const deleteAgent = async (req, res) => {
     try {
         await prisma.agent.delete({
             where: { id: parseInt(req.params.id) },
@@ -76,8 +82,9 @@ export const deleteAgent = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+exports.deleteAgent = deleteAgent;
 // ✅ Delete a property
-export const deleteProperty = async (req, res) => {
+const deleteProperty = async (req, res) => {
     try {
         await prisma.property.delete({
             where: { id: parseInt(req.params.id) },
@@ -88,3 +95,4 @@ export const deleteProperty = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+exports.deleteProperty = deleteProperty;

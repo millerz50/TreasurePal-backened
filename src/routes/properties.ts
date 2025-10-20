@@ -7,7 +7,7 @@ import {
   uploadBytes,
 } from "firebase/storage";
 import multer from "multer";
-import { storage } from "../../lib/firebase"; // ✅ Firebase setup
+import { storage } from "../lib/firebase"; // ✅ Firebase setup
 
 const router = Router();
 const prisma = new PrismaClient();

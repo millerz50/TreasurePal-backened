@@ -7,7 +7,6 @@ import {
 
 const prisma = new PrismaClient();
 
-// ✅ TypeScript Interface for Compile-Time Safety
 export interface CreatePropertyInput {
   title: string;
   description?: string;
@@ -22,7 +21,6 @@ export interface CreatePropertyInput {
   agentId: string;
 }
 
-// ✅ Create Property
 export async function createProperty(
   data: CreatePropertyInput
 ): Promise<Property> {
@@ -39,7 +37,7 @@ export async function createProperty(
       amenities: (data.amenities || []).join(","),
       coordinates: data.coordinates.join(","),
       agent: {
-        connect: { agentId: data.agentId }, // ✅ Correct relation
+        connect: { agentId: data.agentId }, // ✅ Only works if agentId is unique and referenced
       },
     },
   });
@@ -47,7 +45,6 @@ export async function createProperty(
   return property;
 }
 
-// ✅ Format Property for Output
 export function formatProperty(property: Property): {
   id: number;
   title: string;
@@ -77,7 +74,7 @@ export function formatProperty(property: Property): {
     rooms: property.rooms,
     amenities: property.amenities.split(","),
     coordinates: property.coordinates.split(",").map(Number),
-    viewsThisWeek: 0, // Placeholder—can be replaced with actual logic
+    viewsThisWeek: property.viewsThisWeek,
     createdAt: property.createdAt,
     updatedAt: property.updatedAt,
     agentId: property.agentId,

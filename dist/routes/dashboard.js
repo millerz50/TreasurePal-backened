@@ -1,9 +1,14 @@
-import { PrismaClient } from "@prisma/client";
-import express from "express";
-import { verifyToken } from "../middleware/auth.js";
-const router = express.Router();
-const prisma = new PrismaClient();
-router.get("/", verifyToken, async (req, res) => {
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const client_1 = require("@prisma/client");
+const express_1 = __importDefault(require("express"));
+const auth_js_1 = require("../middleware/auth.js");
+const router = express_1.default.Router();
+const prisma = new client_1.PrismaClient();
+router.get("/", auth_js_1.verifyToken, async (req, res) => {
     try {
         const payload = req.agent;
         if (!payload ||
@@ -53,4 +58,4 @@ router.get("/", verifyToken, async (req, res) => {
         });
     }
 });
-export default router;
+exports.default = router;

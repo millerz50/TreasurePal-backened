@@ -1,11 +1,17 @@
-import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcrypt";
-const prisma = new PrismaClient();
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.verifyAgent = exports.deleteAgent = exports.updateAgent = exports.getAgentById = exports.getAgents = exports.registerAgent = void 0;
+const client_1 = require("@prisma/client");
+const bcrypt_1 = __importDefault(require("bcrypt"));
+const prisma = new client_1.PrismaClient();
 // ✅ Register Agent
-export const registerAgent = async (req, res) => {
+const registerAgent = async (req, res) => {
     try {
         const { password, ...rest } = req.body;
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt_1.default.hash(password, 10);
         const agent = await prisma.agent.create({
             data: {
                 ...rest,
@@ -19,8 +25,9 @@ export const registerAgent = async (req, res) => {
         res.status(400).json({ error: "Registration failed", details: message });
     }
 };
+exports.registerAgent = registerAgent;
 // ✅ Get All Agents
-export const getAgents = async (_req, res) => {
+const getAgents = async (_req, res) => {
     try {
         const agents = await prisma.agent.findMany();
         res.json(agents);
@@ -30,8 +37,9 @@ export const getAgents = async (_req, res) => {
         res.status(500).json({ error: "Failed to fetch agents", details: message });
     }
 };
+exports.getAgents = getAgents;
 // ✅ Get Agent by ID
-export const getAgentById = async (req, res) => {
+const getAgentById = async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         const agent = await prisma.agent.findUnique({ where: { id } });
@@ -44,8 +52,9 @@ export const getAgentById = async (req, res) => {
         res.status(400).json({ error: "Invalid ID format", details: message });
     }
 };
+exports.getAgentById = getAgentById;
 // ✅ Update Agent
-export const updateAgent = async (req, res) => {
+const updateAgent = async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         const updated = await prisma.agent.update({
@@ -59,8 +68,9 @@ export const updateAgent = async (req, res) => {
         res.status(400).json({ error: "Update failed", details: message });
     }
 };
+exports.updateAgent = updateAgent;
 // ✅ Delete Agent
-export const deleteAgent = async (req, res) => {
+const deleteAgent = async (req, res) => {
     try {
         const id = parseInt(req.params.id, 10);
         await prisma.agent.delete({ where: { id } });
@@ -71,8 +81,9 @@ export const deleteAgent = async (req, res) => {
         res.status(400).json({ error: "Invalid ID format", details: message });
     }
 };
+exports.deleteAgent = deleteAgent;
 // ✅ Verify Agent
-export const verifyAgent = async (req, res) => {
+const verifyAgent = async (req, res) => {
     const { email } = req.body;
     const imageUrl = req.file?.path;
     if (!email || !imageUrl) {
@@ -98,3 +109,4 @@ export const verifyAgent = async (req, res) => {
         res.status(500).json({ error: "Verification failed", details: message });
     }
 };
+exports.verifyAgent = verifyAgent;

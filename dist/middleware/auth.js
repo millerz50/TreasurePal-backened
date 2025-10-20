@@ -1,7 +1,13 @@
-import cookie from "cookie";
-import jwt from "jsonwebtoken";
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.verifyToken = void 0;
+const cookie_1 = __importDefault(require("cookie"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
-export const verifyToken = (req, res, next) => {
+const verifyToken = (req, res, next) => {
     const cookieHeader = req.headers.cookie;
     if (!cookieHeader) {
         console.warn("⚠️ No cookie header found in request");
@@ -11,7 +17,7 @@ export const verifyToken = (req, res, next) => {
     }
     let token;
     try {
-        const cookies = cookie.parse(cookieHeader);
+        const cookies = cookie_1.default.parse(cookieHeader);
         token = cookies.auth_token;
     }
     catch (err) {
@@ -24,7 +30,7 @@ export const verifyToken = (req, res, next) => {
             .json({ error: "Access denied. No token found in cookie." });
     }
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
         req.agent = decoded;
         next();
     }
@@ -33,3 +39,4 @@ export const verifyToken = (req, res, next) => {
         return res.status(403).json({ error: "Invalid or expired token" });
     }
 };
+exports.verifyToken = verifyToken;

@@ -6,9 +6,8 @@ import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import multer from "multer";
 import nodemailer from "nodemailer";
-import { storage } from "../../lib/firebase";
+import { storage } from "../lib/firebase";
 import { AuthenticatedRequest, verifyToken } from "../middleware/auth.js";
-
 
 const router = express.Router();
 const prisma = new PrismaClient();

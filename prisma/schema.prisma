@@ -76,25 +76,26 @@ model User {
 }
 
 model Property {
-  id            Int            @id @default(autoincrement())
+  id            Int      @id @default(autoincrement())
   title         String
-  description   String         @default("")
+  description   String   @default("")
   price         String
   type          PropertyType
   status        PropertyStatus
   location      String
   address       String
-  rooms         Int            @default(0)
-  amenities     String         @default("")
-  coordinates   String         @default("")
-  viewsThisWeek Int            @default(0)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime
+  rooms         Int      @default(0)
+  amenities     String   @default("")
+  coordinates   String   @default("")
+  viewsThisWeek Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt // ✅ Only this line
   imageUrl      String?
   agentId       String
-  agent         Agent          @relation(fields: [agentId], references: [agentId])
-  likedByUsers  User[]         @relation("LikedProperties")
+  agent         Agent    @relation(fields: [agentId], references: [agentId])
+  likedByUsers  User[]   @relation("LikedProperties")
 }
+
 
 enum PropertyType {
   Residential
