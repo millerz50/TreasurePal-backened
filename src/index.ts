@@ -72,10 +72,17 @@ app.use(morgan("dev"));
 //
 // ✅ Rate limiting
 //
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: {
+    trustProxy: false, // ✅ disables the warning
+  },
 });
+
 app.use("/api", limiter);
 
 //
