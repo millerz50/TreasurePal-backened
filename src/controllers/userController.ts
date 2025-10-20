@@ -9,15 +9,23 @@ const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 
 // 🔐 Signup
+
 export const signup = async (req: Request, res: Response): Promise<void> => {
   try {
+    const { name, surname, email, password, dob, occupation, avatarUrl } =
+      req.body;
+
     const user = await prisma.user.create({
       data: {
         userId: nanoid(12),
-        ...req.body,
-        email: req.body.email.toLowerCase(),
-        password: await hashPassword(req.body.password),
-        avatarUrl: req.body.avatarUrl || "/avatars/default.png",
+        name,
+        surname,
+        email: email.toLowerCase(),
+        password: await hashPassword(password),
+        dob: new Date(dob),
+        occupation,
+        status: "active",
+        avatarUrl: avatarUrl || "/avatars/default.png",
       },
     });
 
@@ -29,6 +37,7 @@ export const signup = async (req: Request, res: Response): Promise<void> => {
       },
     });
   } catch (err: any) {
+    console.error("❌ Signup error:", err);
     res.status(500).json({ error: err.message });
   }
 };

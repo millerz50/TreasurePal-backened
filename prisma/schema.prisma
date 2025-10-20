@@ -65,6 +65,7 @@ model User {
   password        String
   status          String
   dob             DateTime
+  occupation      String     // ✅ Add this line
   blogLikes       String     @default("")
   propertyLikes   String     @default("")
   avatarUrl       String     @default("/avatars/default.png")
@@ -74,6 +75,7 @@ model User {
   likedBlogPosts  BlogPost[] @relation("LikedBlogPosts")
   likedProperties Property[] @relation("LikedProperties")
 }
+
 
 model Property {
   id            Int      @id @default(autoincrement())
