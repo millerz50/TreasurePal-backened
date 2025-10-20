@@ -1,8 +1,12 @@
 import { Router } from "express";
-import { deleteUser, editUser, signup } from "../controllers/userController.js";
-import { validateUser } from "../middleware/validateUser.js";
+import { deleteUser, editUser, getUserProfile, loginUser, signup, } from "../controllers/userController.js";
+import { verifyToken } from "../middleware/verifyToken";
+import { validateLogin } from "../validators/validateLogin";
+import { validateUser } from "../validators/validateUser";
 const router = Router();
 router.post("/signup", validateUser, signup);
-router.put("/:id", validateUser, editUser);
-router.delete("/:id", deleteUser);
+router.post("/login", validateLogin, loginUser); // 🔥 New login route
+router.get("/me", verifyToken, getUserProfile); // 🔥 SSR-compatible route
+router.put("/:id", verifyToken, validateUser, editUser);
+router.delete("/:id", verifyToken, deleteUser);
 export default router;

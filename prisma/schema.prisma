@@ -58,6 +58,7 @@ model Agent {
 
 model User {
   id              String     @id @default(uuid())
+  userId          String     @unique
   name            String
   surname         String
   email           String     @unique
@@ -66,6 +67,7 @@ model User {
   dob             DateTime
   blogLikes       String     @default("")
   propertyLikes   String     @default("")
+  avatarUrl       String     @default("/avatars/default.png")
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
   blogPosts       BlogPost[] @relation("AuthoredPosts")

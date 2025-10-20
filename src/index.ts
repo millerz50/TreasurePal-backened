@@ -58,7 +58,7 @@ app.use("/api/debug", debugRouter);
 app.use("/api/users", userRoutes);
 app.use("/api/admins", adminRoutes);
 
-app.use("/api/admins", adminRoutes);
+app.use("/api/user", userRoutes);
 
 // ✅ Health check
 app.get("/api/health", async (_req, res) => {

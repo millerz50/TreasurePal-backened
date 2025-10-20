@@ -120,6 +120,9 @@ router.get("/me", verifyToken, async (req, res) => {
 });
 // 🆕 Create Agent with Firebase Image Upload
 router.post("/create", upload.single("image"), async (req, res) => {
+    console.log("🚀 /create route hit");
+    console.log("🧾 req.body:", req.body);
+    console.log("🖼️ req.file:", req.file);
     try {
         const { firstName, surname, email, nationalId, password, status } = req.body;
         const existing = await prisma.agent.findUnique({ where: { email } });

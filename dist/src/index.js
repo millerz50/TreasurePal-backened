@@ -28,7 +28,10 @@ app.use(cors({
     origin: "http://localhost:3000",
     credentials: true,
 }));
+app.set("trust proxy", 1);
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use("/api/json", express.json());
 app.use(morgan("dev"));
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -43,7 +46,7 @@ app.use("/api/dashboard", dashboardRouter);
 app.use("/api/debug", debugRouter);
 app.use("/api/users", userRoutes);
 app.use("/api/admins", adminRoutes);
-app.use("/api/admins", adminRoutes);
+app.use("/api/user", userRoutes);
 // ✅ Health check
 app.get("/api/health", async (_req, res) => {
     try {
