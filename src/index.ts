@@ -32,7 +32,7 @@ app.use(helmet());
 app.use(compression());
 
 //
-// ✅ Dynamic CORS with Express v5-safe wildcard
+// ✅ Dynamic CORS with Express v5-safe preflight
 //
 const allowedOrigins = [
   "http://localhost:3000",
@@ -56,7 +56,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options("/:wildcard(*)", cors(corsOptions)); // ✅ Named wildcard for Express v5
+app.options("/api/*", cors(corsOptions)); // ✅ Safe preflight route
 
 //
 // ✅ Body parsing
@@ -97,9 +97,9 @@ app.use("/api/user", userRoutes); // Optional alias
 app.get("/api/health", async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "✅ SQLite connected" });
+    res.json({ status: "✅ PostgreSQL connected" }); // Update this if using PostgreSQL
   } catch (err) {
-    res.status(500).json({ status: "❌ SQLite connection failed", error: err });
+    res.status(500).json({ status: "❌ DB connection failed", error: err });
   }
 });
 
