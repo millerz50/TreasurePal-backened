@@ -32,7 +32,7 @@ app.use(helmet());
 app.use(compression());
 
 //
-// ✅ Dynamic CORS with preflight support
+// ✅ Dynamic CORS with Express v5-safe wildcard
 //
 const allowedOrigins = [
   "http://localhost:3000",
@@ -56,7 +56,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options("/*", cors(corsOptions)); // ✅ Express v5-safe wildcard
+app.options("/:wildcard(*)", cors(corsOptions)); // ✅ Named wildcard for Express v5
 
 //
 // ✅ Body parsing
