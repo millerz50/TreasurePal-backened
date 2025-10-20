@@ -2,6 +2,7 @@ import { Router } from "express";
 import {
   deleteUser,
   editUser,
+  getAllUsers,
   getUserProfile,
   loginUser,
   signup,
@@ -24,5 +25,8 @@ router.post("/login", isProd ? loginUser : [validateLogin, loginUser]);
 router.get("/me", verifyToken, getUserProfile);
 router.put("/:id", verifyToken, isProd ? editUser : [validateUser, editUser]);
 router.delete("/:id", verifyToken, deleteUser);
+
+// Public or protected route depending on your use case
+router.get("/all", verifyToken, getAllUsers);
 
 export default router;

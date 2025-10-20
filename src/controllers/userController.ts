@@ -8,6 +8,32 @@ import { hashPassword } from "../utils/hashPassword.js";
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 
+export const getAllUsers = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  try {
+    const users = await prisma.user.findMany({
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        surname: true,
+        email: true,
+        avatarUrl: true,
+        occupation: true,
+        status: true,
+        createdAt: true,
+      },
+    });
+
+    return res.json({ users });
+  } catch (err: any) {
+    console.error("❌ Fetch all users error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
 //
 // 🔐 Signup
 //
