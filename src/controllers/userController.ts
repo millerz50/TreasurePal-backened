@@ -111,11 +111,10 @@ export const loginUser = async (
     }
 
     const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: "7d" });
-
     res.cookie("auth_token", token, {
       httpOnly: true,
-      secure: true,
-      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production", // ✅ only true in prod
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // ✅ lax works locally
     });
 
     return res.json({
