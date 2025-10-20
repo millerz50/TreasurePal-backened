@@ -25,11 +25,15 @@ const prisma = new PrismaClient();
 const app = express();
 app.set("trust proxy", true);
 
+//
 // ✅ Security + Performance
+//
 app.use(helmet());
 app.use(compression());
 
+//
 // ✅ Dynamic CORS with preflight support
+//
 const allowedOrigins = [
   "http://localhost:3000",
   "https://treasurepal.vercel.app",
@@ -52,24 +56,32 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions)); // ✅ Handle preflight requests
+app.options("/*", cors(corsOptions)); // ✅ Express v5-safe wildcard
 
+//
 // ✅ Body parsing
+//
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/api/json", express.json());
 
+//
 // ✅ Logging
+//
 app.use(morgan("dev"));
 
+//
 // ✅ Rate limiting
+//
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
 });
 app.use("/api", limiter);
 
+//
 // ✅ Routes
+//
 app.use("/api/properties", propertiesRouter);
 app.use("/api", healthRouter);
 app.use("/api/agents", agentRouter);
@@ -79,7 +91,9 @@ app.use("/api/users", userRoutes);
 app.use("/api/admins", adminRoutes);
 app.use("/api/user", userRoutes); // Optional alias
 
+//
 // ✅ Health check
+//
 app.get("/api/health", async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -89,7 +103,9 @@ app.get("/api/health", async (_req, res) => {
   }
 });
 
+//
 // ✅ Error handler
+//
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   console.error("❌ Uncaught error:", err);
   res.status(500).json({
@@ -98,7 +114,9 @@ app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
+//
 // ✅ Start server
+//
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
