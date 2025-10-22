@@ -136,61 +136,103 @@ router.get("/me", verifyToken, async (req: AuthenticatedRequest, res) => {
 });
 
 // 🆕 Create Agent with Firebase Image Upload
-
 router.post("/create", upload.single("image"), async (req, res) => {
   console.log("🚀 /create route hit");
 
-  console.log("🧾 req.body:", req.body);
-  console.log("🖼️ req.file:", req.file);
   try {
+    console.log("🧾 Incoming body:", req.body);
+    console.log("🖼️ Incoming file:", req.file);
+
     const { firstName, surname, email, nationalId, password, status } =
       req.body;
 
+    // ✅ Validate required fields
+    const missingFields = [];
+    if (!firstName) missingFields.push("firstName");
+    if (!surname) missingFields.push("surname");
+    if (!email) missingFields.push("email");
+    if (!nationalId) missingFields.push("nationalId");
+    if (!password) missingFields.push("password");
+
+    if (missingFields.length > 0) {
+      console.warn("⚠️ Missing fields:", missingFields);
+      return res
+        .status(400)
+        .json({ error: "Missing required fields", fields: missingFields });
+    }
+
+    // ✅ Check for existing agent
     const existing = await prisma.agent.findUnique({ where: { email } });
-    if (existing)
+    if (existing) {
+      console.warn("⚠️ Duplicate email:", email);
       return res.status(409).json({ error: "Email already in use" });
+    }
 
-    let imageUrl = null;
+    // ✅ Upload image to Firebase Storage
+    let imageUrl: string | null = null;
     if (req.file) {
-      const imageRef = ref(
-        storage,
-        `agents/${Date.now()}_${req.file.originalname}`
-      );
-      const snapshot = await uploadBytes(imageRef, req.file.buffer);
-      imageUrl = await getDownloadURL(snapshot.ref);
-    }
-    if (!firstName || !surname || !email || !nationalId || !password) {
-      return res.status(400).json({ error: "Missing required fields" });
+      try {
+        console.log("📤 Uploading image to Firebase...");
+        const imageRef = ref(
+          storage,
+          `agents/${Date.now()}_${req.file.originalname}`
+        );
+        const snapshot = await uploadBytes(imageRef, req.file.buffer);
+        imageUrl = await getDownloadURL(snapshot.ref);
+        console.log("✅ Image uploaded:", imageUrl);
+      } catch (uploadErr) {
+        console.error("❌ Image upload failed:", uploadErr);
+        return res
+          .status(500)
+          .json({ error: "Image upload failed", details: String(uploadErr) });
+      }
+    } else {
+      console.warn("⚠️ No image file received");
     }
 
-    const newAgent = await prisma.agent.create({
-      data: {
-        firstName,
-        surname,
-        email,
-        nationalId,
-        password: await bcrypt.hash(password, 10),
-        status,
-        agentId: generateAgentId(),
-        imageUrl,
-      },
-    });
+    // ✅ Create agent in database
+    try {
+      console.log("🧬 Creating agent in database...");
+      const newAgent = await prisma.agent.create({
+        data: {
+          firstName,
+          surname,
+          email,
+          nationalId,
+          password: await bcrypt.hash(password, 10),
+          status: status || "Not Verified",
+          agentId: generateAgentId(),
+          imageUrl,
+        },
+      });
 
-    res.status(201).json({
-      message: "Agent created",
-      agent: {
+      console.log("✅ Agent created:", {
         email: newAgent.email,
         agentId: newAgent.agentId,
         role: newAgent.role,
         status: newAgent.status,
         imageUrl: newAgent.imageUrl,
-      },
-    });
+      });
+
+      res.status(201).json({
+        message: "Agent created",
+        agent: {
+          email: newAgent.email,
+          agentId: newAgent.agentId,
+          role: newAgent.role,
+          status: newAgent.status,
+          imageUrl: newAgent.imageUrl,
+        },
+      });
+    } catch (dbErr) {
+      console.error("❌ Database error:", dbErr);
+      res.status(500).json({ error: "Database error", details: String(dbErr) });
+    }
   } catch (err) {
-    res.status(400).json({ message: "Validation error", error: String(err) });
+    console.error("❌ Unexpected error:", err);
+    res.status(500).json;
   }
 });
-
 // ✏️ Update Agent
 router.put("/update/:agentId", async (req, res) => {
   try {
