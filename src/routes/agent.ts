@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
-import Busboy from "busboy";
+import busboy from "busboy";
 import cookie from "cookie";
 import express from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
@@ -136,16 +136,22 @@ router.get("/me", verifyToken, async (req: AuthenticatedRequest, res) => {
 });
 
 // 🆕 Create Agent with Firebase Image Upload
+interface AgentFields {
+  firstName: string;
+  surname: string;
+  email: string;
+  nationalId: string;
+  password: string;
+  status?: string;
+}
 
-router.post("/create", (req: Request, res: Response): void => {
-  const busboy = new Busboy({ headers: req.headers });
+router.post("/create", (req, res): void => {
+  const bb = busboy({ headers: req.headers });
   let imageUrl: string | null = null;
   const fields: Partial<AgentFields> = {};
-
   let uploadError: Error | null = null;
-  let uploadFinished = false;
 
-  busboy.on(
+  bb.on(
     "file",
     (
       fieldname: string,
@@ -171,7 +177,6 @@ router.post("/create", (req: Request, res: Response): void => {
       stream.on("finish", () => {
         imageUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
         console.log("✅ Image uploaded:", imageUrl);
-        uploadFinished = true;
       });
 
       stream.on("error", (err: Error) => {
@@ -182,11 +187,11 @@ router.post("/create", (req: Request, res: Response): void => {
     }
   );
 
-  busboy.on("field", (fieldname: string, val: string) => {
-    (fields as Record<string, string>)[fieldname] = val;
+  bb.on("field", (fieldname: string, val: string) => {
+    fields[fieldname as keyof AgentFields] = val;
   });
 
-  busboy.on("finish", async () => {
+  bb.on("finish", async () => {
     if (uploadError) {
       return res.status(400).json({ error: uploadError.message });
     }
@@ -232,7 +237,7 @@ router.post("/create", (req: Request, res: Response): void => {
     }
   });
 
-  req.pipe(busboy);
+  (req as NodeJS.ReadableStream).pipe(bb); // ✅ cast req to readable stream
 });
 // ✏️ Update Agent
 router.put("/update/:agentId", async (req, res) => {
