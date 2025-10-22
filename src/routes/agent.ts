@@ -135,7 +135,15 @@ interface AgentFields {
 }
 
 router.post("/create", (req, res): void => {
-  const bb = busboy({ headers: req.headers });
+  const bb = busboy({
+    headers: req.headers,
+    limits: {
+      fieldSize: 1 * 1024 * 1024, // 1MB per field
+      fields: 20, // max number of fields
+      files: 1, // max number of files
+    },
+  });
+
   let imageUrl: string | null = null;
   const fields: Partial<AgentFields> = {};
   let uploadError: Error | null = null;
