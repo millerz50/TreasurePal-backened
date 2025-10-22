@@ -5,7 +5,7 @@
   "type": "commonjs",
   "scripts": {
     "build": "prisma generate && tsc",
-    "start": "npm run build && node dist/index.js"
+    "start": "npm run build && node --max-old-space-size=16384 dist/index.js"
   },
   "keywords": [],
   "author": "",
