@@ -2,11 +2,10 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
 import cookie from "cookie";
 import express from "express";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import multer from "multer";
 import nodemailer from "nodemailer";
-import { storage } from "../lib/firebase";
+import { bucket } from "../lib/firebaseAdmin"; // ✅ Firebase Admin SDK bucket
 import { AuthenticatedRequest, verifyToken } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -136,49 +135,39 @@ router.get("/me", verifyToken, async (req: AuthenticatedRequest, res) => {
 });
 
 // 🆕 Create Agent with Firebase Image Upload
+
 router.post("/create", upload.single("image"), async (req, res) => {
   console.log("🚀 /create route hit");
+  console.log("🧾 Incoming body:", req.body);
+  console.log("🖼️ Incoming file:", req.file);
 
   try {
-    console.log("🧾 Incoming body:", req.body);
-    console.log("🖼️ Incoming file:", req.file);
-
     const { firstName, surname, email, nationalId, password, status } =
       req.body;
 
     // ✅ Validate required fields
-    const missingFields = [];
-    if (!firstName) missingFields.push("firstName");
-    if (!surname) missingFields.push("surname");
-    if (!email) missingFields.push("email");
-    if (!nationalId) missingFields.push("nationalId");
-    if (!password) missingFields.push("password");
-
-    if (missingFields.length > 0) {
-      console.warn("⚠️ Missing fields:", missingFields);
-      return res
-        .status(400)
-        .json({ error: "Missing required fields", fields: missingFields });
+    if (!firstName || !surname || !email || !nationalId || !password) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
 
     // ✅ Check for existing agent
     const existing = await prisma.agent.findUnique({ where: { email } });
     if (existing) {
-      console.warn("⚠️ Duplicate email:", email);
       return res.status(409).json({ error: "Email already in use" });
     }
 
-    // ✅ Upload image to Firebase Storage
+    // ✅ Upload image to Firebase Storage using Admin SDK
     let imageUrl: string | null = null;
     if (req.file) {
       try {
-        console.log("📤 Uploading image to Firebase...");
-        const imageRef = ref(
-          storage,
-          `agents/${Date.now()}_${req.file.originalname}`
-        );
-        const snapshot = await uploadBytes(imageRef, req.file.buffer);
-        imageUrl = await getDownloadURL(snapshot.ref);
+        const fileName = `agents/${Date.now()}_${req.file.originalname}`;
+        const file = bucket.file(fileName);
+
+        await file.save(req.file.buffer, {
+          metadata: { contentType: req.file.mimetype },
+        });
+
+        imageUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
         console.log("✅ Image uploaded:", imageUrl);
       } catch (uploadErr) {
         console.error("❌ Image upload failed:", uploadErr);
@@ -186,8 +175,6 @@ router.post("/create", upload.single("image"), async (req, res) => {
           .status(500)
           .json({ error: "Image upload failed", details: String(uploadErr) });
       }
-    } else {
-      console.warn("⚠️ No image file received");
     }
 
     // ✅ Create agent in database
@@ -230,9 +217,10 @@ router.post("/create", upload.single("image"), async (req, res) => {
     }
   } catch (err) {
     console.error("❌ Unexpected error:", err);
-    res.status(500).json;
+    res.status(500).json({ error: "Unexpected error", details: String(err) }); // ✅ fixed
   }
 });
+
 // ✏️ Update Agent
 router.put("/update/:agentId", async (req, res) => {
   try {
