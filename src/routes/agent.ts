@@ -4,7 +4,7 @@ import busboy from "busboy";
 import cookie from "cookie";
 import express from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
-import multer from "multer";
+
 import nodemailer from "nodemailer";
 import { bucket } from "../lib/firebaseAdmin"; // ✅ Firebase Admin SDK bucket
 import { AuthenticatedRequest, verifyToken } from "../middleware/auth.js";
@@ -12,17 +12,6 @@ import { AuthenticatedRequest, verifyToken } from "../middleware/auth.js";
 const router = express.Router();
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
-
-// 🖼️ Multer setup
-const upload = multer({
-  storage: multer.memoryStorage(),
-  fileFilter: (_req, file, cb) => {
-    if (!file.mimetype.startsWith("image/")) {
-      return cb(new Error("Only image files are allowed"));
-    }
-    cb(null, true);
-  },
-});
 
 // 🧬 Agent ID Generator
 const generateAgentId = (): string => {
