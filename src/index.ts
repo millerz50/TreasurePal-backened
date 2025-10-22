@@ -36,7 +36,7 @@ app.use(compression());
 //
 const allowedOrigins = [
   "http://localhost:3000",
-  "https://treasure-pal-p24x.vercel.app/",
+  "https://treasure-pal.vercel.app",
 ];
 
 const corsOptions = {
