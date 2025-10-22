@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
+import Busboy from "busboy";
 import cookie from "cookie";
 import express from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
@@ -136,50 +137,72 @@ router.get("/me", verifyToken, async (req: AuthenticatedRequest, res) => {
 
 // 🆕 Create Agent with Firebase Image Upload
 
-router.post("/create", upload.single("image"), async (req, res) => {
-  console.log("🚀 /create route hit");
-  console.log("🧾 Incoming body:", req.body);
-  console.log("🖼️ Incoming file:", req.file);
+router.post("/create", (req: Request, res: Response): void => {
+  const busboy = new Busboy({ headers: req.headers });
+  let imageUrl: string | null = null;
+  const fields: Partial<AgentFields> = {};
 
-  try {
-    const { firstName, surname, email, nationalId, password, status } =
-      req.body;
+  let uploadError: Error | null = null;
+  let uploadFinished = false;
 
-    // ✅ Validate required fields
+  busboy.on(
+    "file",
+    (
+      fieldname: string,
+      file: NodeJS.ReadableStream,
+      filename: string,
+      encoding: string,
+      mimetype: string
+    ) => {
+      if (!mimetype.startsWith("image/")) {
+        uploadError = new Error("Only image files are allowed");
+        file.resume(); // discard stream
+        return;
+      }
+
+      const fileName = `agents/${Date.now()}_${filename}`;
+      const firebaseFile = bucket.file(fileName);
+      const stream = firebaseFile.createWriteStream({
+        metadata: { contentType: mimetype },
+      });
+
+      file.pipe(stream);
+
+      stream.on("finish", () => {
+        imageUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+        console.log("✅ Image uploaded:", imageUrl);
+        uploadFinished = true;
+      });
+
+      stream.on("error", (err: Error) => {
+        uploadError = err;
+        console.error("❌ Image upload failed:", err);
+        file.resume();
+      });
+    }
+  );
+
+  busboy.on("field", (fieldname: string, val: string) => {
+    (fields as Record<string, string>)[fieldname] = val;
+  });
+
+  busboy.on("finish", async () => {
+    if (uploadError) {
+      return res.status(400).json({ error: uploadError.message });
+    }
+
+    const { firstName, surname, email, nationalId, password, status } = fields;
+
     if (!firstName || !surname || !email || !nationalId || !password) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // ✅ Check for existing agent
-    const existing = await prisma.agent.findUnique({ where: { email } });
-    if (existing) {
-      return res.status(409).json({ error: "Email already in use" });
-    }
-
-    // ✅ Upload image to Firebase Storage using Admin SDK
-    let imageUrl: string | null = null;
-    if (req.file) {
-      try {
-        const fileName = `agents/${Date.now()}_${req.file.originalname}`;
-        const file = bucket.file(fileName);
-
-        await file.save(req.file.buffer, {
-          metadata: { contentType: req.file.mimetype },
-        });
-
-        imageUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
-        console.log("✅ Image uploaded:", imageUrl);
-      } catch (uploadErr) {
-        console.error("❌ Image upload failed:", uploadErr);
-        return res
-          .status(500)
-          .json({ error: "Image upload failed", details: String(uploadErr) });
-      }
-    }
-
-    // ✅ Create agent in database
     try {
-      console.log("🧬 Creating agent in database...");
+      const existing = await prisma.agent.findUnique({ where: { email } });
+      if (existing) {
+        return res.status(409).json({ error: "Email already in use" });
+      }
+
       const newAgent = await prisma.agent.create({
         data: {
           firstName,
@@ -193,14 +216,6 @@ router.post("/create", upload.single("image"), async (req, res) => {
         },
       });
 
-      console.log("✅ Agent created:", {
-        email: newAgent.email,
-        agentId: newAgent.agentId,
-        role: newAgent.role,
-        status: newAgent.status,
-        imageUrl: newAgent.imageUrl,
-      });
-
       res.status(201).json({
         message: "Agent created",
         agent: {
@@ -211,16 +226,14 @@ router.post("/create", upload.single("image"), async (req, res) => {
           imageUrl: newAgent.imageUrl,
         },
       });
-    } catch (dbErr) {
+    } catch (dbErr: unknown) {
       console.error("❌ Database error:", dbErr);
       res.status(500).json({ error: "Database error", details: String(dbErr) });
     }
-  } catch (err) {
-    console.error("❌ Unexpected error:", err);
-    res.status(500).json({ error: "Unexpected error", details: String(err) }); // ✅ fixed
-  }
-});
+  });
 
+  req.pipe(busboy);
+});
 // ✏️ Update Agent
 router.put("/update/:agentId", async (req, res) => {
   try {
