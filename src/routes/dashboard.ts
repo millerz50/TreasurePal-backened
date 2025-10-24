@@ -1,8 +1,8 @@
 import express, { NextFunction, Response } from "express";
 import { prisma } from "../lib/prisma";
-import { AuthenticatedRequest } from "../middleware/auth";
 import { verifyToken } from "../middleware/verifyToken";
 import { getAgentDashboardMetrics } from "../services/dashboard";
+import { AuthenticatedRequest } from "../types/AuthenticatedRequest";
 
 const router = express.Router();
 

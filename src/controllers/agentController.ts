@@ -3,7 +3,7 @@ import { Response } from "express";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import { comparePassword } from "../lib/utils/auth";
-import { AuthenticatedRequest } from "../middleware/auth";
+import { AuthenticatedRequest } from "../types/AuthenticatedRequest";
 
 import {
   createAgent,
