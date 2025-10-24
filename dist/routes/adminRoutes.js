@@ -1,11 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
-const adminController_js_1 = require("../controllers/adminController.js");
+const adminController_1 = require("../controllers/adminController");
 const router = (0, express_1.Router)();
-router.post("/create", adminController_js_1.createAdmin); // ✅ Register the route
-router.post("/approve-blog", adminController_js_1.approveBlogPost);
-router.delete("/user/:id", adminController_js_1.deleteUser);
-router.delete("/agent/:id", adminController_js_1.deleteAgent);
-router.delete("/property/:id", adminController_js_1.deleteProperty);
+router.post("/create", adminController_1.createAdmin);
+router.post("/approve-blog", adminController_1.approveBlogPost);
+router.delete("/user/:id", adminController_1.deleteUserById);
+router.delete("/agent/:id", adminController_1.deleteAgentById);
+router.delete("/property/:id", adminController_1.deletePropertyById);
 exports.default = router;

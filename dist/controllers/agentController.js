@@ -3,110 +3,94 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyAgent = exports.deleteAgent = exports.updateAgent = exports.getAgentById = exports.getAgents = exports.registerAgent = void 0;
-const client_1 = require("@prisma/client");
-const bcrypt_1 = __importDefault(require("bcrypt"));
-const prisma = new client_1.PrismaClient();
-// ✅ Register Agent
-const registerAgent = async (req, res) => {
-    try {
-        const { password, ...rest } = req.body;
-        const hashedPassword = await bcrypt_1.default.hash(password, 10);
-        const agent = await prisma.agent.create({
-            data: {
-                ...rest,
-                password: hashedPassword,
-            },
-        });
-        res.status(201).json(agent);
+exports.login = login;
+exports.register = register;
+exports.getProfile = getProfile;
+exports.update = update;
+exports.remove = remove;
+exports.list = list;
+exports.sendOtp = sendOtp;
+exports.verifyOtpCode = verifyOtpCode;
+const cookie_1 = __importDefault(require("cookie"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const nodemailer_1 = __importDefault(require("nodemailer"));
+const auth_1 = require("../lib/utils/auth");
+const agentService_1 = require("../services/agentService");
+const otpService_1 = require("../services/otpService");
+const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
+async function login(req, res) {
+    const { email, password } = req.body;
+    const agent = await (0, agentService_1.getAgentByEmail)(email);
+    if (!agent)
+        return res.status(404).json({ error: "Agent not found" });
+    const isMatch = await (0, auth_1.comparePassword)(password.trim(), agent.password);
+    if (!isMatch)
+        return res.status(401).json({ error: "Invalid credentials" });
+    const token = jsonwebtoken_1.default.sign({ agentId: agent.agentId, role: agent.role }, JWT_SECRET, { expiresIn: "2h" });
+    res.setHeader("Set-Cookie", cookie_1.default.serialize("auth_token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "none",
+        maxAge: 2 * 60 * 60,
+        path: "/",
+    }));
+    res.status(200).json({
+        message: "Login successful",
+        agent: {
+            email: agent.email,
+            agentId: agent.agentId,
+            role: agent.role,
+            status: agent.status,
+        },
+    });
+}
+async function register(req, res) {
+    const agent = await (0, agentService_1.createAgent)(req.body);
+    res.status(201).json(agent);
+}
+async function getProfile(req, res) {
+    if (!req.agent || !req.agent.agentId) {
+        return res
+            .status(401)
+            .json({ error: "Unauthorized: Invalid token payload" });
     }
-    catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        res.status(400).json({ error: "Registration failed", details: message });
-    }
-};
-exports.registerAgent = registerAgent;
-// ✅ Get All Agents
-const getAgents = async (_req, res) => {
-    try {
-        const agents = await prisma.agent.findMany();
-        res.json(agents);
-    }
-    catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        res.status(500).json({ error: "Failed to fetch agents", details: message });
-    }
-};
-exports.getAgents = getAgents;
-// ✅ Get Agent by ID
-const getAgentById = async (req, res) => {
-    try {
-        const id = parseInt(req.params.id, 10);
-        const agent = await prisma.agent.findUnique({ where: { id } });
-        if (!agent)
-            return res.status(404).json({ error: "Agent not found" });
-        res.json(agent);
-    }
-    catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        res.status(400).json({ error: "Invalid ID format", details: message });
-    }
-};
-exports.getAgentById = getAgentById;
-// ✅ Update Agent
-const updateAgent = async (req, res) => {
-    try {
-        const id = parseInt(req.params.id, 10);
-        const updated = await prisma.agent.update({
-            where: { id },
-            data: req.body,
-        });
-        res.json(updated);
-    }
-    catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        res.status(400).json({ error: "Update failed", details: message });
-    }
-};
-exports.updateAgent = updateAgent;
-// ✅ Delete Agent
-const deleteAgent = async (req, res) => {
-    try {
-        const id = parseInt(req.params.id, 10);
-        await prisma.agent.delete({ where: { id } });
-        res.status(204).send();
-    }
-    catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        res.status(400).json({ error: "Invalid ID format", details: message });
-    }
-};
-exports.deleteAgent = deleteAgent;
-// ✅ Verify Agent
-const verifyAgent = async (req, res) => {
+    // ✅ Now TypeScript knows req.agent is defined
+    const agentId = req.agent.agentId;
+}
+async function update(req, res) {
+    const agent = await (0, agentService_1.updateAgent)(req.params.agentId, req.body);
+    res.json(agent);
+}
+async function remove(req, res) {
+    await (0, agentService_1.deleteAgent)(req.params.agentId);
+    res.json({ message: "Agent deleted" });
+}
+async function list(req, res) {
+    const agents = await (0, agentService_1.getAllAgents)();
+    res.json(agents);
+}
+async function sendOtp(req, res) {
     const { email } = req.body;
-    const imageUrl = req.file?.path;
-    if (!email || !imageUrl) {
-        return res.status(400).json({ error: "Email and image are required" });
-    }
-    try {
-        const agent = await prisma.agent.updateMany({
-            where: { email },
-            data: {
-                imageUrl,
-                emailVerified: true,
-                status: "Verified",
-            },
-        });
-        if (agent.count === 0) {
-            return res.status(404).json({ error: "Agent not found" });
-        }
-        const updated = await prisma.agent.findUnique({ where: { email } });
-        res.json({ message: "Agent verified successfully", agent: updated });
-    }
-    catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        res.status(500).json({ error: "Verification failed", details: message });
-    }
-};
-exports.verifyAgent = verifyAgent;
+    const otp = (0, otpService_1.generateOtp)(email);
+    const transporter = nodemailer_1.default.createTransport({
+        service: "gmail",
+        auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS,
+        },
+    });
+    await transporter.sendMail({
+        from: `"TreasurePal Verification" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: "Your TreasurePal OTP Code",
+        text: `Your verification code is ${otp}. It expires in 5 minutes.`,
+    });
+    res.json({ message: "OTP sent" });
+}
+async function verifyOtpCode(req, res) {
+    const { email, otp } = req.body;
+    const valid = (0, otpService_1.verifyOtp)(email, otp);
+    if (!valid)
+        return res.status(400).json({ error: "Invalid or expired OTP" });
+    res.json({ message: "OTP verified" });
+}

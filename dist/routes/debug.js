@@ -3,23 +3,24 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const client_1 = require("@prisma/client");
 const express_1 = __importDefault(require("express"));
+const prisma_1 = require("../lib/prisma"); // ✅ Singleton Prisma
 const router = express_1.default.Router();
-const prisma = new client_1.PrismaClient();
-router.get("/password", async (_req, res) => {
+// ⚠️ Debug route — restrict in production
+router.get("/password", async (req, res) => {
+    const email = req.query.email;
+    if (!email || typeof email !== "string") {
+        return res.status(400).json({ error: "Email query required" });
+    }
     try {
-        const agent = await prisma.agent.findUnique({
-            where: { email: "johwanisi1@gmail.com" },
-        });
+        const agent = await prisma_1.prisma.agent.findUnique({ where: { email } });
         if (!agent) {
             return res.status(404).json({ error: "Agent not found" });
         }
-        console.log("Stored password:", agent.password);
         res.json({
             email: agent.email,
-            password: agent.password,
             isHashed: agent.password.startsWith("$2b$"),
+            passwordPreview: agent.password.slice(0, 10) + "...", // ✅ Partial hash only
         });
     }
     catch (err) {
