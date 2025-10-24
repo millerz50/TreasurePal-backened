@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import {
   getProfile,
   list,
@@ -9,13 +10,18 @@ import {
   update,
   verifyOtpCode,
 } from "../controllers/agentController";
-import { verifyToken } from "../middleware/verifyToken"; // ✅ Middleware
+import { verifyToken } from "../middleware/verifyToken";
 
 const router = Router();
 
+// ✅ Configure Multer to store files in memory
+const upload = multer({ storage: multer.memoryStorage() });
+
+// ✅ Apply Multer to the register route
+router.post("/register", upload.single("image"), register);
+
 router.post("/login", login);
-router.post("/register", register);
-router.get("/me", verifyToken, getProfile); // ✅ Uses AuthenticatedRequest
+router.get("/me", verifyToken, getProfile);
 router.put("/update/:agentId", update);
 router.delete("/delete/:agentId", remove);
 router.get("/all", list);
