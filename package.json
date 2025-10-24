@@ -4,8 +4,9 @@
   "main": "dist/index.js",
   "type": "commonjs",
   "scripts": {
-    "build": "prisma generate && tsc",
-    "start": "npm run build && node --max-old-space-size=16384 dist/index.js"
+    "generate": "prisma generate",
+    "build": "tsc",
+    "start": "node --max-old-space-size=4096 dist/index.js"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +23,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
+    "express-async-errors": "^3.1.1",
     "express-rate-limit": "^8.1.0",
     "firebase": "^12.4.0",
     "firebase-admin": "^13.5.0",
@@ -35,7 +37,7 @@
     "nodemailer": "^7.0.9"
   },
   "devDependencies": {
-    "@prisma/client": "^6.17.1",
+    "@prisma/client": "^6.18.0",
     "@types/bcrypt": "^6.0.0",
     "@types/busboy": "^1.5.4",
     "@types/compression": "^1.8.1",
@@ -50,7 +52,7 @@
     "@types/multer": "^2.0.0",
     "@types/nodemailer": "^7.0.2",
     "nodemon": "^3.1.10",
-    "prisma": "^6.17.1",
+    "prisma": "^6.18.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

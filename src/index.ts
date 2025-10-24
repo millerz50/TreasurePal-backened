@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import "express-async-errors";
 dotenv.config({
   path: process.env.NODE_ENV === "production" ? ".env" : ".env.local",
 });
