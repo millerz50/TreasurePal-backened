@@ -1,16 +1,10 @@
-import { PrismaClient } from "@prisma/client";
 import { Request, Response, Router } from "express";
-import {
-  deleteObject,
-  getDownloadURL,
-  ref,
-  uploadBytes,
-} from "firebase/storage";
 import multer from "multer";
-import { storage } from "../lib/firebase"; // ✅ Firebase setup
+import { v4 as uuidv4 } from "uuid";
+import { bucket } from "../lib/firebaseAdmin"; // ✅ Firebase Admin SDK
+import { prisma } from "../lib/prisma"; // ✅ Singleton Prisma
 
 const router = Router();
-const prisma = new PrismaClient();
 const upload = multer({ storage: multer.memoryStorage() });
 
 // ✅ Get all properties
@@ -56,28 +50,34 @@ router.get("/:id", async (req: Request, res: Response) => {
   }
 });
 
-// ✅ Create a new property with image upload
+// ✅ Upload image to Firebase Admin
+const uploadImageToFirebase = async (
+  file: Express.Multer.File
+): Promise<string> => {
+  const fileName = `properties/${Date.now()}_${uuidv4()}_${file.originalname}`;
+  const firebaseFile = bucket.file(fileName);
+
+  await firebaseFile.save(file.buffer, {
+    metadata: { contentType: file.mimetype },
+    public: true,
+  });
+
+  return `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+};
+
+// ✅ Create a new property
 router.post(
   "/add",
   upload.single("image"),
   async (req: Request, res: Response) => {
     try {
       const { amenities, coordinates, agentId, ...rest } = req.body;
-
       const parsedAgentId = parseInt(agentId, 10);
-      if (isNaN(parsedAgentId)) {
+      if (isNaN(parsedAgentId))
         return res.status(400).json({ error: "Invalid agentId" });
-      }
 
       let imageUrl: string | null = null;
-      if (req.file) {
-        const imageRef = ref(
-          storage,
-          `properties/${Date.now()}_${req.file.originalname}`
-        );
-        const snapshot = await uploadBytes(imageRef, req.file.buffer);
-        imageUrl = await getDownloadURL(snapshot.ref);
-      }
+      if (req.file) imageUrl = await uploadImageToFirebase(req.file);
 
       const property = await prisma.property.create({
         data: {
@@ -101,7 +101,7 @@ router.post(
   }
 );
 
-// ✅ Update a property by ID
+// ✅ Update a property
 router.put(
   "/:id",
   upload.single("image"),
@@ -111,21 +111,22 @@ router.put(
       const { amenities, coordinates, ...rest } = req.body;
 
       let imageUrl: string | null = null;
-      if (req.file) {
-        const imageRef = ref(
-          storage,
-          `properties/${Date.now()}_${req.file.originalname}`
-        );
-        const snapshot = await uploadBytes(imageRef, req.file.buffer);
-        imageUrl = await getDownloadURL(snapshot.ref);
-      }
+      if (req.file) imageUrl = await uploadImageToFirebase(req.file);
 
       const property = await prisma.property.update({
         where: { id },
         data: {
           ...rest,
-          ...(amenities && { amenities: amenities.split(",").join(",") }),
-          ...(coordinates && { coordinates: coordinates.split(",").join(",") }),
+          ...(amenities && {
+            amenities: Array.isArray(amenities)
+              ? amenities.join(",")
+              : amenities,
+          }),
+          ...(coordinates && {
+            coordinates: Array.isArray(coordinates)
+              ? coordinates.join(",")
+              : coordinates,
+          }),
           ...(imageUrl && { imageUrl }),
         },
       });
@@ -148,8 +149,8 @@ router.delete("/:id", async (req: Request, res: Response) => {
     if (property?.imageUrl) {
       const match = property.imageUrl.match(/properties\/(.+)$/);
       if (match) {
-        const imageRef = ref(storage, `properties/${match[1]}`);
-        await deleteObject(imageRef);
+        const firebaseFile = bucket.file(`properties/${match[1]}`);
+        await firebaseFile.delete();
       }
     }
 

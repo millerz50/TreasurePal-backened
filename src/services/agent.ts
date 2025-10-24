@@ -1,6 +1,6 @@
-import { prisma } from "../prisma";
-import { hashPassword } from "../utils/auth";
-import { generateAgentId } from "../utils/id";
+import { prisma } from "../lib/prisma";
+import { hashPassword } from "../lib/utils/auth";
+import { generateAgentId } from "../lib/utils/id";
 
 export async function createAgent(data: {
   firstName: string;

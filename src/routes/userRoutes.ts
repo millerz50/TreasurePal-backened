@@ -8,25 +8,26 @@ import {
   signup,
 } from "../controllers/userController.js";
 import { verifyToken } from "../middleware/verifyToken";
+import { withValidation } from "../utils/conditionalMiddleware";
 import { validateLogin } from "../validators/validateLogin";
 import { validateUser } from "../validators/validateUser";
 
-const router: Router = Router();
-
+const router = Router();
 const isProd = process.env.NODE_ENV === "production";
 
-// Signup route
-router.post("/signup", isProd ? signup : [validateUser, signup]);
+// ✅ Assign middleware arrays to variables for clarity and type safety
+const signupMiddleware = withValidation(validateUser, signup, isProd);
+const loginMiddleware = withValidation(validateLogin, loginUser, isProd);
+const editMiddleware = withValidation(validateUser, editUser, isProd);
 
-// Login route
-router.post("/login", isProd ? loginUser : [validateLogin, loginUser]);
+// ✅ Public routes
+router.post("/signup", ...signupMiddleware);
+router.post("/login", ...loginMiddleware);
 
-// Protected routes
+// ✅ Protected routes
 router.get("/me", verifyToken, getUserProfile);
-router.put("/:id", verifyToken, isProd ? editUser : [validateUser, editUser]);
+router.put("/:id", verifyToken, ...editMiddleware);
 router.delete("/:id", verifyToken, deleteUser);
-
-// Public or protected route depending on your use case
 router.get("/all", verifyToken, getAllUsers);
 
 export default router;

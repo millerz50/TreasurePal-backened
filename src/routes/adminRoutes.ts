@@ -2,17 +2,17 @@ import { Router } from "express";
 import {
   approveBlogPost,
   createAdmin,
-  deleteAgent,
-  deleteProperty,
-  deleteUser,
-} from "../controllers/adminController.js";
+  deleteAgentById,
+  deletePropertyById,
+  deleteUserById,
+} from "../controllers/adminController";
 
-const router: Router = Router();
+const router = Router();
 
-router.post("/create", createAdmin); // ✅ Register the route
+router.post("/create", createAdmin);
 router.post("/approve-blog", approveBlogPost);
-router.delete("/user/:id", deleteUser);
-router.delete("/agent/:id", deleteAgent);
-router.delete("/property/:id", deleteProperty);
+router.delete("/user/:id", deleteUserById);
+router.delete("/agent/:id", deleteAgentById);
+router.delete("/property/:id", deletePropertyById);
 
 export default router;

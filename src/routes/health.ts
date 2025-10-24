@@ -1,8 +1,7 @@
-import { PrismaClient } from "@prisma/client";
 import { Router } from "express";
+import { prisma } from "../lib/prisma"; // ✅ Singleton Prisma
 
 const router = Router();
-const prisma = new PrismaClient();
 
 router.get("/health", async (_req, res) => {
   try {

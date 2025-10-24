@@ -3,13 +3,15 @@ dotenv.config({
   path: process.env.NODE_ENV === "production" ? ".env" : ".env.local",
 });
 
-import { PrismaClient } from "@prisma/client";
 import compression from "compression";
 import cors from "cors";
 import express, { NextFunction, Request, Response } from "express";
+import "express-async-errors"; // ✅ Optional: catch async errors
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import morgan from "morgan";
+
+import { prisma } from "./lib/prisma";
 
 // Routers
 import adminRoutes from "./routes/adminRoutes.js";
@@ -21,7 +23,6 @@ import propertiesRouter from "./routes/properties.js";
 import userRoutes from "./routes/userRoutes.js";
 
 const PORT = parseInt(process.env.PORT || "4011", 10);
-const prisma = new PrismaClient();
 const app = express();
 app.set("trust proxy", true);
 
@@ -32,7 +33,7 @@ app.use(helmet());
 app.use(compression());
 
 //
-// ✅ Dynamic CORS (no wildcard crash)
+// ✅ Dynamic CORS
 //
 const allowedOrigins = [
   "http://localhost:3000",
@@ -55,10 +56,10 @@ const corsOptions = {
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
-app.use(cors(corsOptions)); // ✅ Handles all CORS requests
+app.use(cors(corsOptions));
 
 //
-// ✅ Body parsing
+// ✅ Body Parsing
 //
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -70,16 +71,15 @@ app.use("/api/json", express.json());
 app.use(morgan("dev"));
 
 //
-// ✅ Rate limiting
+// ✅ Rate Limiting
 //
-
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   validate: {
-    trustProxy: false, // ✅ disables the warning
+    trustProxy: false,
   },
 });
 
@@ -98,19 +98,19 @@ app.use("/api/admins", adminRoutes);
 app.use("/api/user", userRoutes); // Optional alias
 
 //
-// ✅ Health check
+// ✅ Health Check
 //
 app.get("/api/health", async (_req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "✅ PostgreSQL connected" }); // Update message to match your DB
+    res.json({ status: "✅ PostgreSQL connected" });
   } catch (err) {
     res.status(500).json({ status: "❌ DB connection failed", error: err });
   }
 });
 
 //
-// ✅ Error handler
+// ✅ Error Handler
 //
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   console.error("❌ Uncaught error:", err);
@@ -121,7 +121,16 @@ app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
 });
 
 //
-// ✅ Start server
+// ✅ Graceful Shutdown
+//
+process.on("SIGINT", async () => {
+  console.log("🛑 Shutting down gracefully...");
+  await prisma.$disconnect();
+  process.exit(0);
+});
+
+//
+// ✅ Start Server
 //
 app.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
