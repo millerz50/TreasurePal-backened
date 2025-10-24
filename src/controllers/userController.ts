@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { nanoid } from "nanoid";
-import logger from "../lib/logger";
+import { logger } from "../lib/logger";
 import { hashPassword } from "../utils/hashPassword.js";
 
 const prisma = new PrismaClient();

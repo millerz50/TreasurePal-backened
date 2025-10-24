@@ -3,7 +3,7 @@ import { Response } from "express";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 import { uploadToFirebase } from "../lib/firebaseUpload";
-import logger from "../lib/logger";
+import { logger } from "../lib/logger";
 import { comparePassword } from "../lib/utils/auth";
 import { AuthenticatedRequest } from "../types/AuthenticatedRequest";
 
