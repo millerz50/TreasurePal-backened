@@ -2,6 +2,7 @@ import cookie from "cookie";
 import { Response } from "express";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
+import { uploadToFirebase } from "../lib/firebaseUpload"; // You’ll need to implement this
 import { comparePassword } from "../lib/utils/auth";
 import { AuthenticatedRequest } from "../types/AuthenticatedRequest";
 
@@ -53,20 +54,34 @@ export async function login(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function register(req: AuthenticatedRequest, res: Response) {
-  const agent = await createAgent(req.body);
-  res.status(201).json(agent);
-}
+  try {
+    const { firstName, surname, email, password, nationalId, status } =
+      req.body;
+    const imageBuffer = req.file?.buffer;
+    const imageName = req.file?.originalname;
 
-export async function getProfile(req: AuthenticatedRequest, res: Response) {
-  if (!req.agent || !req.agent.agentId) {
-    return res
-      .status(401)
-      .json({ error: "Unauthorized: Invalid token payload" });
+    if (!imageBuffer || !imageName) {
+      return res.status(400).json({ error: "Image file is required" });
+    }
+
+    const imageUrl = await uploadToFirebase(imageBuffer, imageName);
+
+    const agent = await createAgent({
+      firstName,
+      surname,
+      email,
+      password,
+      nationalId,
+      status,
+      imageUrl,
+    });
+
+    res.status(201).json(agent);
+  } catch (err) {
+    res.status(500).json({ error: "Agent creation failed", details: err });
   }
-
-  // ✅ Now TypeScript knows req.agent is defined
-  const agentId = req.agent.agentId;
 }
+
 export async function update(req: AuthenticatedRequest, res: Response) {
   const agent = await updateAgent(req.params.agentId, req.body);
   res.json(agent);
