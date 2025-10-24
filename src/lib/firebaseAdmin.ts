@@ -1,14 +1,15 @@
-// lib/firebaseAdmin.ts
-import admin from "firebase-admin";
-import path from "path";
+import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getStorage } from "firebase-admin/storage";
 
-const serviceAccount = require(path.resolve("serviceAccountKey.json"));
-
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    storageBucket: "treasurepal-5a1e4.appspot.com", // ✅ must match Firebase Console
+if (!getApps().length) {
+  initializeApp({
+    credential: cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+    }),
+    storageBucket: "treasurepal-5a1e4.appspot.com",
   });
 }
 
-export const bucket = admin.storage().bucket();
+export const bucket = getStorage().bucket();

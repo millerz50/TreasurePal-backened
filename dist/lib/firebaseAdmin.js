@@ -1,17 +1,16 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.bucket = void 0;
-// lib/firebaseAdmin.ts
-const firebase_admin_1 = __importDefault(require("firebase-admin"));
-const path_1 = __importDefault(require("path"));
-const serviceAccount = require(path_1.default.resolve("serviceAccountKey.json"));
-if (!firebase_admin_1.default.apps.length) {
-    firebase_admin_1.default.initializeApp({
-        credential: firebase_admin_1.default.credential.cert(serviceAccount),
-        storageBucket: "treasurepal-5a1e4.appspot.com", // ✅ must match Firebase Console
+const app_1 = require("firebase-admin/app");
+const storage_1 = require("firebase-admin/storage");
+if (!(0, app_1.getApps)().length) {
+    (0, app_1.initializeApp)({
+        credential: (0, app_1.cert)({
+            projectId: process.env.FIREBASE_PROJECT_ID,
+            clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+            privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+        }),
+        storageBucket: "treasurepal-5a1e4.appspot.com",
     });
 }
-exports.bucket = firebase_admin_1.default.storage().bucket();
+exports.bucket = (0, storage_1.getStorage)().bucket();
