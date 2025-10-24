@@ -7,11 +7,10 @@ dotenv.config({
 import compression from "compression";
 import cors from "cors";
 import express, { NextFunction, Request, Response } from "express";
-import "express-async-errors"; // ✅ Optional: catch async errors
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import morgan from "morgan";
-
+import { logger } from "./lib/logger";
 import { prisma } from "./lib/prisma";
 
 // Routers
@@ -67,9 +66,15 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api/json", express.json());
 
 //
-// ✅ Logging
+// ✅ Logging with Morgan + Winston
 //
-app.use(morgan("dev"));
+app.use(
+  morgan("combined", {
+    stream: {
+      write: (message) => logger.info(message.trim()),
+    },
+  })
+);
 
 //
 // ✅ Rate Limiting
@@ -106,7 +111,9 @@ app.get("/api/health", async (_req, res) => {
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: "✅ PostgreSQL connected" });
   } catch (err) {
-    res.status(500).json({ status: "❌ DB connection failed", error: err });
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error(`Health check failed: ${message}`, err);
+    res.status(500).json({ status: "❌ DB connection failed", error: message });
   }
 });
 
@@ -114,10 +121,11 @@ app.get("/api/health", async (_req, res) => {
 // ✅ Error Handler
 //
 app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
-  console.error("❌ Uncaught error:", err);
+  const message = err instanceof Error ? err.message : String(err);
+  logger.error(`❌ Uncaught error: ${message}`, err);
   res.status(500).json({
     error: "Internal server error",
-    details: err instanceof Error ? err.message : String(err),
+    details: message,
   });
 });
 
@@ -125,7 +133,7 @@ app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
 // ✅ Graceful Shutdown
 //
 process.on("SIGINT", async () => {
-  console.log("🛑 Shutting down gracefully...");
+  logger.info("🛑 Shutting down gracefully...");
   await prisma.$disconnect();
   process.exit(0);
 });
@@ -134,5 +142,5 @@ process.on("SIGINT", async () => {
 // ✅ Start Server
 //
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  logger.info(`🚀 Server running on http://localhost:${PORT}`);
 });
