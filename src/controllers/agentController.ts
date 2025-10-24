@@ -125,3 +125,12 @@ export async function verifyOtpCode(req: AuthenticatedRequest, res: Response) {
   if (!valid) return res.status(400).json({ error: "Invalid or expired OTP" });
   res.json({ message: "OTP verified" });
 }
+export async function getProfile(req: AuthenticatedRequest, res: Response) {
+  if (!req.agent || !req.agent.agentId) {
+    return res
+      .status(401)
+      .json({ error: "Unauthorized: Invalid token payload" });
+  }
+
+  const agentId = req.agent.agentId;
+}
