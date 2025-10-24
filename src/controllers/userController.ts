@@ -3,15 +3,21 @@ import bcrypt from "bcrypt";
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { nanoid } from "nanoid";
+import logger from "../lib/logger";
 import { hashPassword } from "../utils/hashPassword.js";
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
 
+//
+// 📋 Get all users
+//
 export const getAllUsers = async (
   req: Request,
   res: Response
 ): Promise<Response> => {
+  logger.info("Fetching all users");
+
   try {
     const users = await prisma.user.findMany({
       select: {
@@ -27,9 +33,10 @@ export const getAllUsers = async (
       },
     });
 
+    logger.info(`Fetched ${users.length} users`);
     return res.json({ users });
   } catch (err: any) {
-    console.error("❌ Fetch all users error:", err);
+    logger.error(`Fetch all users error: ${err.message}`, err);
     return res.status(500).json({ error: err.message });
   }
 };
@@ -41,11 +48,13 @@ export const signup = async (
   req: Request,
   res: Response
 ): Promise<Response> => {
-  try {
-    const { name, surname, email, password, dob, occupation, avatarUrl } =
-      req.body;
+  const { name, surname, email, password, dob, occupation, avatarUrl } =
+    req.body;
+  logger.info(`Signup attempt for email: ${email}`);
 
+  try {
     if (!name || !surname || !email || !password || !dob || !occupation) {
+      logger.warn(`Signup failed: Missing fields for ${email}`);
       return res.status(400).json({
         error: "Missing required fields",
         fields: { name, surname, email, password, dob, occupation },
@@ -57,6 +66,7 @@ export const signup = async (
     });
 
     if (existing) {
+      logger.warn(`Signup failed: Email already registered - ${email}`);
       return res.status(409).json({ error: "Email already registered" });
     }
 
@@ -74,6 +84,7 @@ export const signup = async (
       },
     });
 
+    logger.info(`User created: ${user.userId}`);
     return res.status(201).json({
       user: {
         name: user.name,
@@ -82,7 +93,7 @@ export const signup = async (
       },
     });
   } catch (err: any) {
-    console.error("❌ Signup error:", err);
+    logger.error(`Signup error for ${email}: ${err.message}`, err);
     return res.status(500).json({
       error: "Internal server error",
       details: err instanceof Error ? err.message : String(err),
@@ -97,26 +108,30 @@ export const loginUser = async (
   req: Request,
   res: Response
 ): Promise<Response> => {
-  try {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
+  logger.info(`Login attempt for email: ${email}`);
 
+  try {
     if (!email || !password) {
+      logger.warn("Login failed: Missing email or password");
       return res.status(400).json({ error: "Email and password required" });
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user || !(await bcrypt.compare(password, user.password))) {
+      logger.warn(`Login failed: Invalid credentials for ${email}`);
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const token = jwt.sign({ id: user.id }, JWT_SECRET, { expiresIn: "7d" });
     res.cookie("auth_token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // ✅ only true in prod
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax", // ✅ lax works locally
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     });
 
+    logger.info(`Login successful for userId: ${user.userId}`);
     return res.json({
       user: {
         name: user.name,
@@ -125,7 +140,7 @@ export const loginUser = async (
       },
     });
   } catch (err: any) {
-    console.error("❌ Login error:", err);
+    logger.error(`Login error for ${email}: ${err.message}`, err);
     return res.status(500).json({ error: err.message });
   }
 };
@@ -137,10 +152,12 @@ export const getUserProfile = async (
   req: Request,
   res: Response
 ): Promise<Response> => {
-  try {
-    const userId = (req as any).agent?.id;
+  const userId = (req as any).agent?.id;
+  logger.info(`Fetching profile for userId: ${userId}`);
 
+  try {
     if (!userId) {
+      logger.warn("Unauthorized profile access attempt");
       return res.status(401).json({ error: "Unauthorized" });
     }
 
@@ -154,12 +171,14 @@ export const getUserProfile = async (
     });
 
     if (!user) {
+      logger.warn(`Profile not found for userId: ${userId}`);
       return res.status(404).json({ error: "User not found" });
     }
 
+    logger.info(`Profile fetched for userId: ${userId}`);
     return res.json({ user });
   } catch (err: any) {
-    console.error("❌ Profile fetch error:", err);
+    logger.error(`Profile fetch error for ${userId}: ${err.message}`, err);
     return res.status(500).json({ error: err.message });
   }
 };
@@ -171,11 +190,14 @@ export const editUser = async (
   req: Request,
   res: Response
 ): Promise<Response> => {
+  const { id } = req.params;
+  logger.info(`Editing user: ${id}`);
+
   try {
-    const { id } = req.params;
     const updates = { ...req.body };
 
     if (!id) {
+      logger.warn("Edit failed: Missing user ID");
       return res.status(400).json({ error: "Missing user ID" });
     }
 
@@ -188,6 +210,7 @@ export const editUser = async (
       data: updates,
     });
 
+    logger.info(`User updated: ${user.userId}`);
     return res.json({
       user: {
         name: user.name,
@@ -196,7 +219,7 @@ export const editUser = async (
       },
     });
   } catch (err: any) {
-    console.error("❌ Edit error:", err);
+    logger.error(`Edit error for user ${id}: ${err.message}`, err);
     return res.status(500).json({ error: err.message });
   }
 };
@@ -208,17 +231,20 @@ export const deleteUser = async (
   req: Request,
   res: Response
 ): Promise<Response> => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
+  logger.info(`Deleting user: ${id}`);
 
+  try {
     if (!id) {
+      logger.warn("Delete failed: Missing user ID");
       return res.status(400).json({ error: "Missing user ID" });
     }
 
     await prisma.user.delete({ where: { id } });
+    logger.info(`User deleted: ${id}`);
     return res.status(204).send();
   } catch (err: any) {
-    console.error("❌ Delete error:", err);
+    logger.error(`Delete error for user ${id}: ${err.message}`, err);
     return res.status(500).json({ error: err.message });
   }
 };
