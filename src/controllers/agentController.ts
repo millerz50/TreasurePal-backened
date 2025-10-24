@@ -9,7 +9,6 @@ import {
   createAgent,
   deleteAgent,
   getAgentByEmail,
-  getAgentById,
   getAllAgents,
   updateAgent,
 } from "../services/agentService";
@@ -59,12 +58,15 @@ export async function register(req: AuthenticatedRequest, res: Response) {
 }
 
 export async function getProfile(req: AuthenticatedRequest, res: Response) {
-  const { agentId } = req.agent;
-  const agent = await getAgentById(agentId);
-  if (!agent) return res.status(404).json({ error: "Agent not found" });
-  res.json(agent);
-}
+  if (!req.agent || !req.agent.agentId) {
+    return res
+      .status(401)
+      .json({ error: "Unauthorized: Invalid token payload" });
+  }
 
+  // ✅ Now TypeScript knows req.agent is defined
+  const agentId = req.agent.agentId;
+}
 export async function update(req: AuthenticatedRequest, res: Response) {
   const agent = await updateAgent(req.params.agentId, req.body);
   res.json(agent);
