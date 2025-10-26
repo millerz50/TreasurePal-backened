@@ -1,6 +1,6 @@
-const admin = require("firebase-admin");
-const fs = require("fs");
-const path = require("path");
+import admin from "firebase-admin";
+import fs from "fs";
+import path from "path";
 
 // Resolve path to firebase-key.json in project root
 const serviceAccountPath = path.resolve(process.cwd(), "firebase-key.json");
@@ -14,6 +14,5 @@ if (!admin.apps.length) {
   });
 }
 
-// Export the storage bucket
-const bucket = admin.storage().bucket();
-module.exports = { bucket };
+// ✅ Export as ESModule for TypeScript compatibility
+export const bucket = admin.storage().bucket();
