@@ -1,9 +1,12 @@
-// lib/firebaseAdmin.ts
-import admin from "firebase-admin";
-import path from "path";
+const admin = require("firebase-admin");
+const fs = require("fs");
+const path = require("path");
 
-const serviceAccount = require(path.resolve("firebase-key.json"));
+// Resolve path to firebase-key.json in project root
+const serviceAccountPath = path.resolve(process.cwd(), "firebase-key.json");
+const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, "utf8"));
 
+// Initialize Firebase Admin only once
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -11,4 +14,6 @@ if (!admin.apps.length) {
   });
 }
 
-export const bucket = admin.storage().bucket();
+// Export the storage bucket
+const bucket = admin.storage().bucket();
+module.exports = { bucket };
