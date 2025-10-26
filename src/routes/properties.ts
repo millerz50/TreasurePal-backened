@@ -1,7 +1,10 @@
 import { Request, Response, Router } from "express";
 import multer from "multer";
 import { v4 as uuidv4 } from "uuid";
-import { bucket } from "../lib/firebaseAdmin"; // ✅ Firebase Admin SDK
+
+// src/lib/firebaseUpload.ts or routes/properties.ts
+const { bucket } = require("../lib/firebaseAdmin");
+
 import { prisma } from "../lib/prisma"; // ✅ Singleton Prisma
 
 const router = Router();
