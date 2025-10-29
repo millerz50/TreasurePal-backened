@@ -1,14 +1,4 @@
 "use strict";
-<<<<<<< HEAD
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const agentController_1 = require("../controllers/agentController");
-const verifyToken_1 = require("../middleware/verifyToken"); // ✅ Middleware
-const router = (0, express_1.Router)();
-router.post("/login", agentController_1.login);
-router.post("/register", agentController_1.register);
-router.get("/me", verifyToken_1.verifyToken, agentController_1.getProfile); // ✅ Uses AuthenticatedRequest
-=======
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -24,7 +14,6 @@ const upload = (0, multer_1.default)({ storage: multer_1.default.memoryStorage()
 router.post("/register", upload.single("image"), agentController_1.register);
 router.post("/login", agentController_1.login);
 router.get("/me", verifyToken_1.verifyToken, agentController_1.getProfile);
->>>>>>> backend-cleanup
 router.put("/update/:agentId", agentController_1.update);
 router.delete("/delete/:agentId", agentController_1.remove);
 router.get("/all", agentController_1.list);
