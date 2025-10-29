@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Node.js dependencies
 node_modules/
 
@@ -19,3 +20,10 @@ npm-debug.log*
 
 # Prisma artifacts
 prisma/dev.db
+=======
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+>>>>>>> backend-cleanup
