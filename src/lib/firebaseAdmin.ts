@@ -8,5 +8,6 @@ admin.initializeApp({
   }),
   storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
 });
+console.log("✅ Firebase bucket:", process.env.FIREBASE_STORAGE_BUCKET);
 
 export const bucket = admin.storage().bucket();
