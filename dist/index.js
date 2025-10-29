@@ -11,10 +11,10 @@ dotenv_1.default.config({
 const compression_1 = __importDefault(require("compression"));
 const cors_1 = __importDefault(require("cors"));
 const express_1 = __importDefault(require("express"));
-require("express-async-errors"); // ✅ Optional: catch async errors
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const helmet_1 = __importDefault(require("helmet"));
 const morgan_1 = __importDefault(require("morgan"));
+const logger_1 = require("./lib/logger");
 const prisma_1 = require("./lib/prisma");
 // Routers
 const adminRoutes_js_1 = __importDefault(require("./routes/adminRoutes.js"));
@@ -60,9 +60,13 @@ app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 app.use("/api/json", express_1.default.json());
 //
-// ✅ Logging
+// ✅ Logging with Morgan + Winston
 //
-app.use((0, morgan_1.default)("dev"));
+app.use((0, morgan_1.default)("combined", {
+    stream: {
+        write: (message) => logger_1.logger.info(message.trim()),
+    },
+}));
 //
 // ✅ Rate Limiting
 //
@@ -96,24 +100,27 @@ app.get("/api/health", async (_req, res) => {
         res.json({ status: "✅ PostgreSQL connected" });
     }
     catch (err) {
-        res.status(500).json({ status: "❌ DB connection failed", error: err });
+        const message = err instanceof Error ? err.message : String(err);
+        logger_1.logger.error(`Health check failed: ${message}`, err);
+        res.status(500).json({ status: "❌ DB connection failed", error: message });
     }
 });
 //
 // ✅ Error Handler
 //
 app.use((err, req, res, next) => {
-    console.error("❌ Uncaught error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    logger_1.logger.error(`❌ Uncaught error: ${message}`, err);
     res.status(500).json({
         error: "Internal server error",
-        details: err instanceof Error ? err.message : String(err),
+        details: message,
     });
 });
 //
 // ✅ Graceful Shutdown
 //
 process.on("SIGINT", async () => {
-    console.log("🛑 Shutting down gracefully...");
+    logger_1.logger.info("🛑 Shutting down gracefully...");
     await prisma_1.prisma.$disconnect();
     process.exit(0);
 });
@@ -121,5 +128,5 @@ process.on("SIGINT", async () => {
 // ✅ Start Server
 //
 app.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+    logger_1.logger.info(`🚀 Server running on http://localhost:${PORT}`);
 });
