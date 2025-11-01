@@ -1,7 +1,17 @@
 import express from "express";
-import { prisma } from "../lib/prisma"; // ✅ Singleton Prisma
+import { Client, Databases, Query } from "node-appwrite";
 
 const router = express.Router();
+
+const client = new Client()
+  .setEndpoint(process.env.APPWRITE_ENDPOINT!)
+  .setProject(process.env.APPWRITE_PROJECT_ID!)
+  .setKey(process.env.APPWRITE_API_KEY!);
+
+const databases = new Databases(client);
+
+const DB_ID = "main-db";
+const AGENTS_COLLECTION = "agents";
 
 // ⚠️ Debug route — restrict in production
 router.get("/password", async (req, res) => {
@@ -12,9 +22,12 @@ router.get("/password", async (req, res) => {
   }
 
   try {
-    const agent = await prisma.agent.findUnique({ where: { email } });
+    const result = await databases.listDocuments(DB_ID, AGENTS_COLLECTION, [
+      Query.equal("email", email.toLowerCase()),
+    ]);
 
-    if (!agent) {
+    const agent = result.documents[0];
+    if (!agent || typeof agent.password !== "string") {
       return res.status(404).json({ error: "Agent not found" });
     }
 

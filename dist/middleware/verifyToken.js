@@ -1,38 +1,24 @@
 "use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.verifyTokenAndAdmin = exports.verifyToken = void 0;
-const cookie_1 = __importDefault(require("cookie"));
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
-const verifyToken = (req, res, next) => {
-    const cookieHeader = req.headers.cookie;
-    if (!cookieHeader) {
-        return res.status(401).json({ error: "No cookie provided" });
-    }
-    const cookies = cookie_1.default.parse(cookieHeader);
-    const token = cookies.auth_token;
-    if (!token) {
-        return res.status(401).json({ error: "No token found" });
-    }
+exports.verifyToken = verifyToken;
+const node_appwrite_1 = require("node-appwrite");
+const client = new node_appwrite_1.Client()
+    .setEndpoint(process.env.APPWRITE_ENDPOINT)
+    .setProject(process.env.APPWRITE_PROJECT_ID)
+    .setKey(process.env.APPWRITE_API_KEY);
+const account = new node_appwrite_1.Account(client);
+const databases = new node_appwrite_1.Databases(client);
+async function verifyToken(req, res, next) {
     try {
-        const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
-        req.agent = decoded;
+        const session = await account.get(); // Authenticated user
+        const userDoc = await databases.getDocument("TreasurePal", "users", session.$id);
+        req.user = {
+            id: session.$id,
+            role: userDoc.role,
+        };
         next();
     }
     catch (err) {
-        res.status(403).json({ error: "Invalid or expired token" });
+        res.status(401).json({ error: "Unauthorized" });
     }
-};
-exports.verifyToken = verifyToken;
-// Optional: verifyTokenAndAdmin and verifyTokenAndAuthorization
-const verifyTokenAndAdmin = (req, res, next) => {
-    const agent = req.agent;
-    if (agent?.role !== "admin") {
-        return res.status(403).json({ error: "Admin access required" });
-    }
-    next();
-};
-exports.verifyTokenAndAdmin = verifyTokenAndAdmin;
+}

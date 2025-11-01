@@ -1,5 +1,4 @@
 import dotenv from "dotenv";
-import "express-async-errors";
 dotenv.config({
   path: process.env.NODE_ENV === "production" ? ".env" : ".env.local",
 });
@@ -11,20 +10,30 @@ import rateLimit from "express-rate-limit";
 import helmet from "helmet";
 import morgan from "morgan";
 import { logger } from "./lib/logger";
-import { prisma } from "./lib/prisma";
+import health from "./routes/health";
+
+// Appwrite SDK
+import { Client, Databases } from "node-appwrite";
 
 // Routers
-import adminRoutes from "./routes/adminRoutes.js";
-import agentRouter from "./routes/agent.js";
-import dashboardRouter from "./routes/dashboard.js";
-import debugRouter from "./routes/debug.js";
-import healthRouter from "./routes/health.js";
-import propertiesRouter from "./routes/properties.js";
-import userRoutes from "./routes/userRoutes.js";
+import dashboardRouter from "./routes/dashboard";
+import debugRouter from "./routes/debug";
+import propertiesRouter from "./routes/properties";
+import userRoutes from "./routes/userRoutes";
 
 const PORT = parseInt(process.env.PORT || "4011", 10);
 const app = express();
 app.set("trust proxy", true);
+
+//
+// ✅ Appwrite Client Setup
+//
+const client = new Client()
+  .setEndpoint(process.env.APPWRITE_ENDPOINT!)
+  .setProject(process.env.APPWRITE_PROJECT_ID!)
+  .setKey(process.env.APPWRITE_API_KEY!);
+
+const databases = new Databases(client);
 
 //
 // ✅ Security + Performance
@@ -95,27 +104,15 @@ app.use("/api", limiter);
 // ✅ Routes
 //
 app.use("/api/properties", propertiesRouter);
-app.use("/api", healthRouter);
-app.use("/api/agents", agentRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/debug", debugRouter);
 app.use("/api/users", userRoutes);
-app.use("/api/admins", adminRoutes);
 app.use("/api/user", userRoutes); // Optional alias
 
 //
-// ✅ Health Check
+// ✅ Health Check (Appwrite Ping)
 //
-app.get("/api/health", async (_req, res) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: "✅ PostgreSQL connected" });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    logger.error(`Health check failed: ${message}`, err);
-    res.status(500).json({ status: "❌ DB connection failed", error: message });
-  }
-});
+app.use("/api/", health);
 
 //
 // ✅ Error Handler
@@ -134,7 +131,6 @@ app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
 //
 process.on("SIGINT", async () => {
   logger.info("🛑 Shutting down gracefully...");
-  await prisma.$disconnect();
   process.exit(0);
 });
 

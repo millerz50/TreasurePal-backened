@@ -1,10 +1,21 @@
 import express, { NextFunction, Response } from "express";
-import { prisma } from "../lib/prisma";
+import { Client, Databases, Query } from "node-appwrite";
 import { verifyToken } from "../middleware/verifyToken";
 import { getAgentDashboardMetrics } from "../services/dashboard";
 import { AuthenticatedRequest } from "../types/AuthenticatedRequest";
 
 const router = express.Router();
+
+const client = new Client()
+  .setEndpoint(process.env.APPWRITE_ENDPOINT!)
+  .setProject(process.env.APPWRITE_PROJECT_ID!)
+  .setKey(process.env.APPWRITE_API_KEY!);
+
+const databases = new Databases(client);
+
+const DB_ID = "TreasurePal";
+const AGENTS_COLLECTION = "agents";
+const METRICS_COLLECTION = "agentMetricRecords";
 
 router.get(
   "/metrics",
@@ -17,21 +28,23 @@ router.get(
         return next(new Error("Invalid token payload"));
       }
 
-      const audit = await prisma.agent.findUnique({
-        where: { id: agent.id },
-      });
+      // 🔍 Check if agent exists
+      const result = await databases.listDocuments(DB_ID, AGENTS_COLLECTION, [
+        Query.equal("$id", agent.id),
+      ]);
 
-      if (!audit) {
+      if (result.total === 0) {
         return res.status(404).json({ error: "Agent not found" });
       }
 
+      // 📊 Generate metrics
       const metrics = await getAgentDashboardMetrics(agent.id);
 
-      await prisma.agentMetricRecord.create({
-        data: {
-          agentId: agent.id,
-          metrics,
-        },
+      // 📝 Record metrics
+      await databases.createDocument(DB_ID, METRICS_COLLECTION, "unique()", {
+        agentId: agent.id,
+        metrics,
+        recordedAt: new Date().toISOString(),
       });
 
       res.status(200).json({ agent, metrics });

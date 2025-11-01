@@ -1,24 +1,36 @@
 import { Request, Response, Router } from "express";
 import multer from "multer";
-import { v4 as uuidv4 } from "uuid";
-import { bucket } from "../lib/firebaseAdmin"; // ✅ Firebase Admin SDK
-
-import { prisma } from "../lib/prisma"; // ✅ Singleton Prisma
+import { Client, Databases, ID } from "node-appwrite";
+import { uploadToAppwriteBucket } from "../lib/uploadToAppwrite";
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
+const client = new Client()
+  .setEndpoint(process.env.APPWRITE_ENDPOINT!)
+  .setProject(process.env.APPWRITE_PROJECT_ID!)
+  .setKey(process.env.APPWRITE_API_KEY!);
+
+const databases = new Databases(client);
+
+const DB_ID = "main-db";
+const PROPERTIES_COLLECTION = "properties";
+const AGENTS_COLLECTION = "agents";
+
 // ✅ Get all properties
 router.get("/all", async (_req: Request, res: Response) => {
   try {
-    const properties = await prisma.property.findMany({
-      include: { agent: true },
-    });
+    const result = await databases.listDocuments(
+      DB_ID,
+      PROPERTIES_COLLECTION,
+      [],
+      "100"
+    );
 
-    const formatted = properties.map((p) => ({
+    const formatted = result.documents.map((p) => ({
       ...p,
-      amenities: p.amenities.split(","),
-      coordinates: p.coordinates.split(",").map(Number),
+      amenities: p.amenities?.split(",") ?? [],
+      coordinates: p.coordinates?.split(",").map(Number) ?? [],
     }));
 
     res.json(formatted);
@@ -32,15 +44,16 @@ router.get("/all", async (_req: Request, res: Response) => {
 // ✅ Get a property by ID
 router.get("/:id", async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
-    const property = await prisma.property.findUnique({ where: { id } });
-
-    if (!property) return res.status(404).json({ error: "Not found" });
+    const property = await databases.getDocument(
+      DB_ID,
+      PROPERTIES_COLLECTION,
+      req.params.id
+    );
 
     const formatted = {
       ...property,
-      amenities: property.amenities.split(","),
-      coordinates: property.coordinates.split(",").map(Number),
+      amenities: property.amenities?.split(",") ?? [],
+      coordinates: property.coordinates?.split(",").map(Number) ?? [],
     };
 
     res.json(formatted);
@@ -51,50 +64,48 @@ router.get("/:id", async (req: Request, res: Response) => {
   }
 });
 
-// ✅ Upload image to Firebase Admin
-const uploadImageToFirebase = async (
-  file: Express.Multer.File
-): Promise<string> => {
-  const fileName = `properties/${Date.now()}_${uuidv4()}_${file.originalname}`;
-  const firebaseFile = bucket.file(fileName);
-
-  await firebaseFile.save(file.buffer, {
-    metadata: { contentType: file.mimetype },
-    public: true,
-  });
-
-  return `https://storage.googleapis.com/${bucket.name}/${fileName}`;
-};
-
 // ✅ Create a new property
 router.post(
   "/add",
   upload.single("image"),
   async (req: Request, res: Response) => {
     try {
-      const { amenities, coordinates, agentId, ...rest } = req.body;
-      const parsedAgentId = parseInt(agentId, 10);
-      if (isNaN(parsedAgentId))
+      const { amenities, coordinates, agentId: rawAgentId, ...rest } = req.body;
+      const agentId = String(rawAgentId);
+
+      const agentExists = await databases.getDocument(
+        DB_ID,
+        AGENTS_COLLECTION,
+        agentId
+      );
+      if (!agentExists)
         return res.status(400).json({ error: "Invalid agentId" });
 
       let imageUrl: string | null = null;
-      if (req.file) imageUrl = await uploadImageToFirebase(req.file);
+      if (req.file) {
+        imageUrl = await uploadToAppwriteBucket(
+          req.file.buffer,
+          req.file.originalname
+        );
+      }
 
-      const property = await prisma.property.create({
-        data: {
+      const property = await databases.createDocument(
+        DB_ID,
+        PROPERTIES_COLLECTION,
+        ID.unique(),
+        {
           ...rest,
-          agentId: parsedAgentId,
+          agentId,
           amenities: Array.isArray(amenities) ? amenities.join(",") : amenities,
           coordinates: Array.isArray(coordinates)
             ? coordinates.join(",")
             : coordinates,
           imageUrl,
-        },
-      });
+        }
+      );
 
       res.status(201).json(property);
     } catch (err: any) {
-      console.error("❌ Property creation failed:", err);
       res
         .status(500)
         .json({ error: "Failed to create property", details: err.message });
@@ -108,30 +119,35 @@ router.put(
   upload.single("image"),
   async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id, 10);
       const { amenities, coordinates, ...rest } = req.body;
 
       let imageUrl: string | null = null;
-      if (req.file) imageUrl = await uploadImageToFirebase(req.file);
+      if (req.file) {
+        imageUrl = await uploadToAppwriteBucket(
+          req.file.buffer,
+          req.file.originalname
+        );
+      }
 
-      const property = await prisma.property.update({
-        where: { id },
-        data: {
-          ...rest,
-          ...(amenities && {
-            amenities: Array.isArray(amenities)
-              ? amenities.join(",")
-              : amenities,
-          }),
-          ...(coordinates && {
-            coordinates: Array.isArray(coordinates)
-              ? coordinates.join(",")
-              : coordinates,
-          }),
-          ...(imageUrl && { imageUrl }),
-        },
-      });
+      const updates: any = {
+        ...rest,
+        ...(amenities && {
+          amenities: Array.isArray(amenities) ? amenities.join(",") : amenities,
+        }),
+        ...(coordinates && {
+          coordinates: Array.isArray(coordinates)
+            ? coordinates.join(",")
+            : coordinates,
+        }),
+        ...(imageUrl && { imageUrl }),
+      };
 
+      const property = await databases.updateDocument(
+        DB_ID,
+        PROPERTIES_COLLECTION,
+        req.params.id,
+        updates
+      );
       res.json(property);
     } catch (err: any) {
       res
@@ -141,21 +157,10 @@ router.put(
   }
 );
 
-// ✅ Delete a property and its image
+// ✅ Delete a property (image deletion optional)
 router.delete("/:id", async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id, 10);
-    const property = await prisma.property.findUnique({ where: { id } });
-
-    if (property?.imageUrl) {
-      const match = property.imageUrl.match(/properties\/(.+)$/);
-      if (match) {
-        const firebaseFile = bucket.file(`properties/${match[1]}`);
-        await firebaseFile.delete();
-      }
-    }
-
-    await prisma.property.delete({ where: { id } });
+    await databases.deleteDocument(DB_ID, PROPERTIES_COLLECTION, req.params.id);
     res.status(204).send();
   } catch (err: any) {
     res

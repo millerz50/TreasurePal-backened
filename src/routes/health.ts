@@ -1,23 +1,38 @@
 import { Router } from "express";
-import { prisma } from "../lib/prisma"; // ✅ Singleton Prisma
+import { Client, Databases } from "node-appwrite";
 
 const router = Router();
 
-router.get("/health", async (_req, res) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
+const client = new Client()
+  .setEndpoint(process.env.APPWRITE_ENDPOINT!)
+  .setProject(process.env.APPWRITE_PROJECT_ID!)
+  .setKey(process.env.APPWRITE_API_KEY!)
+  .setSelfSigned(true); // Optional for localhost/self-hosted
 
-    res.json({
+const databases = new Databases(client);
+
+const DB_ID = "6903251e00392e27421f"; // Confirmed database ID
+
+router.get("/health", async (_req, res) => {
+  const timestamp = new Date().toISOString();
+
+  try {
+    const collections = await databases.listCollections(DB_ID);
+    console.log("✅ Connected to DB. Found", collections.total, "collections.");
+
+    return res.json({
       status: "ok",
       db: "connected",
-      timestamp: new Date().toISOString(),
+      timestamp,
+      collectionCount: collections.total,
     });
-  } catch (err) {
-    res.status(500).json({
+  } catch (err: any) {
+    console.error("❌ DB connection failed:", err.message || err);
+    return res.status(500).json({
       status: "error",
       db: "disconnected",
-      timestamp: new Date().toISOString(),
-      details: String(err),
+      timestamp,
+      details: err.message || err,
     });
   }
 });

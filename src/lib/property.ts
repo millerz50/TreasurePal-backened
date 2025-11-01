@@ -1,18 +1,21 @@
-import {
-  PrismaClient,
-  Property,
-  PropertyStatus,
-  PropertyType,
-} from "@prisma/client";
+import { Client, Databases, ID } from "node-appwrite";
 
-const prisma = new PrismaClient();
+const client = new Client()
+  .setEndpoint(process.env.APPWRITE_ENDPOINT!)
+  .setProject(process.env.APPWRITE_PROJECT_ID!)
+  .setKey(process.env.APPWRITE_API_KEY!);
+
+const databases = new Databases(client);
+
+const DB_ID = "main-db";
+const PROPERTIES_COLLECTION = "properties";
 
 export interface CreatePropertyInput {
   title: string;
   description?: string;
   price: string;
-  type: PropertyType;
-  status: PropertyStatus;
+  type: string; // PropertyType as string
+  status: string; // PropertyStatus as string
   location: string;
   address: string;
   rooms?: number;
@@ -21,11 +24,12 @@ export interface CreatePropertyInput {
   agentId: string;
 }
 
-export async function createProperty(
-  data: CreatePropertyInput
-): Promise<Property> {
-  const property = await prisma.property.create({
-    data: {
+export async function createProperty(data: CreatePropertyInput) {
+  const property = await databases.createDocument(
+    DB_ID,
+    PROPERTIES_COLLECTION,
+    ID.unique(),
+    {
       title: data.title,
       description: data.description || "",
       price: data.price,
@@ -36,34 +40,17 @@ export async function createProperty(
       rooms: data.rooms ?? 0,
       amenities: (data.amenities || []).join(","),
       coordinates: data.coordinates.join(","),
-      agent: {
-        connect: { agentId: data.agentId }, // ✅ Only works if agentId is unique and referenced
-      },
-    },
-  });
+      agentId: data.agentId,
+      viewsThisWeek: 0,
+    }
+  );
 
   return property;
 }
 
-export function formatProperty(property: Property): {
-  id: number;
-  title: string;
-  description: string;
-  price: string;
-  type: PropertyType;
-  status: PropertyStatus;
-  location: string;
-  address: string;
-  rooms: number;
-  amenities: string[];
-  coordinates: number[];
-  viewsThisWeek: number;
-  createdAt: Date;
-  updatedAt: Date;
-  agentId: string;
-} {
+export function formatProperty(property: any) {
   return {
-    id: property.id,
+    id: property.$id,
     title: property.title,
     description: property.description,
     price: property.price,
@@ -72,11 +59,11 @@ export function formatProperty(property: Property): {
     location: property.location,
     address: property.address,
     rooms: property.rooms,
-    amenities: property.amenities.split(","),
-    coordinates: property.coordinates.split(",").map(Number),
-    viewsThisWeek: property.viewsThisWeek,
-    createdAt: property.createdAt,
-    updatedAt: property.updatedAt,
+    amenities: property.amenities?.split(",") ?? [],
+    coordinates: property.coordinates?.split(",").map(Number) ?? [0, 0],
+    viewsThisWeek: property.viewsThisWeek ?? 0,
+    createdAt: new Date(property.$createdAt),
+    updatedAt: new Date(property.$updatedAt),
     agentId: property.agentId,
   };
 }

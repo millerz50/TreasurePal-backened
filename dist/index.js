@@ -15,18 +15,24 @@ const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const helmet_1 = __importDefault(require("helmet"));
 const morgan_1 = __importDefault(require("morgan"));
 const logger_1 = require("./lib/logger");
-const prisma_1 = require("./lib/prisma");
+// Appwrite SDK
+const node_appwrite_1 = require("node-appwrite");
 // Routers
-const adminRoutes_js_1 = __importDefault(require("./routes/adminRoutes.js"));
-const agent_js_1 = __importDefault(require("./routes/agent.js"));
 const dashboard_js_1 = __importDefault(require("./routes/dashboard.js"));
 const debug_js_1 = __importDefault(require("./routes/debug.js"));
-const health_js_1 = __importDefault(require("./routes/health.js"));
 const properties_js_1 = __importDefault(require("./routes/properties.js"));
 const userRoutes_js_1 = __importDefault(require("./routes/userRoutes.js"));
 const PORT = parseInt(process.env.PORT || "4011", 10);
 const app = (0, express_1.default)();
 app.set("trust proxy", true);
+//
+// ✅ Appwrite Client Setup
+//
+const client = new node_appwrite_1.Client()
+    .setEndpoint(process.env.APPWRITE_ENDPOINT)
+    .setProject(process.env.APPWRITE_PROJECT_ID)
+    .setKey(process.env.APPWRITE_API_KEY);
+const databases = new node_appwrite_1.Databases(client);
 //
 // ✅ Security + Performance
 //
@@ -84,25 +90,25 @@ app.use("/api", limiter);
 // ✅ Routes
 //
 app.use("/api/properties", properties_js_1.default);
-app.use("/api", health_js_1.default);
-app.use("/api/agents", agent_js_1.default);
 app.use("/api/dashboard", dashboard_js_1.default);
 app.use("/api/debug", debug_js_1.default);
 app.use("/api/users", userRoutes_js_1.default);
-app.use("/api/admins", adminRoutes_js_1.default);
 app.use("/api/user", userRoutes_js_1.default); // Optional alias
 //
-// ✅ Health Check
+// ✅ Health Check (Appwrite Ping)
 //
 app.get("/api/health", async (_req, res) => {
     try {
-        await prisma_1.prisma.$queryRaw `SELECT 1`;
-        res.json({ status: "✅ PostgreSQL connected" });
+        // Try listing documents from a known collection to confirm Appwrite is reachable
+        await databases.listDocuments("TreasurePal", "users", [], "1");
+        res.json({ status: "✅ Appwrite connected" });
     }
     catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger_1.logger.error(`Health check failed: ${message}`, err);
-        res.status(500).json({ status: "❌ DB connection failed", error: message });
+        res
+            .status(500)
+            .json({ status: "❌ Appwrite connection failed", error: message });
     }
 });
 //
@@ -121,7 +127,6 @@ app.use((err, req, res, next) => {
 //
 process.on("SIGINT", async () => {
     logger_1.logger.info("🛑 Shutting down gracefully...");
-    await prisma_1.prisma.$disconnect();
     process.exit(0);
 });
 //

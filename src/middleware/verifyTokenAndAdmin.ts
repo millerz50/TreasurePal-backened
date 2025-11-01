@@ -10,7 +10,7 @@ const client = new Client()
 const account = new Account(client);
 const databases = new Databases(client);
 
-export async function verifyToken(
+export async function verifyTokenAndAdmin(
   req: Request,
   res: Response,
   next: NextFunction
@@ -23,10 +23,15 @@ export async function verifyToken(
       session.$id
     );
 
+    if (userDoc.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
     req.user = {
       id: session.$id,
       role: userDoc.role,
     } as AuthenticatedUser;
+
     next();
   } catch (err) {
     res.status(401).json({ error: "Unauthorized" });

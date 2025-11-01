@@ -3,92 +3,86 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteUser = exports.editUser = exports.getUserProfile = exports.loginUser = exports.signup = exports.getAllUsers = void 0;
-const client_1 = require("@prisma/client");
+exports.deleteProperty = exports.approveBlogPost = exports.deleteUser = exports.editUser = exports.getUserProfile = exports.loginUser = exports.signup = exports.getAllUsers = void 0;
 const bcrypt_1 = __importDefault(require("bcrypt"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const nanoid_1 = require("nanoid");
+const node_appwrite_1 = require("node-appwrite");
 const logger_1 = require("../lib/logger");
-const hashPassword_js_1 = require("../utils/hashPassword.js");
-const prisma = new client_1.PrismaClient();
+const client = new node_appwrite_1.Client()
+    .setEndpoint(process.env.APPWRITE_ENDPOINT)
+    .setProject(process.env.APPWRITE_PROJECT_ID)
+    .setKey(process.env.APPWRITE_API_KEY);
+const account = new node_appwrite_1.Account(client);
+const databases = new node_appwrite_1.Databases(client);
 const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
+const DB_ID = "main-db";
+const USERS_COLLECTION = "users";
 //
-// 📋 Get all users
+// 📋 Get all users (admin only)
 //
 const getAllUsers = async (req, res) => {
-    logger_1.logger.info("Fetching all users");
+    if (req.user?.role !== "admin") {
+        return res.status(403).json({ error: "Only admins can view all users." });
+    }
     try {
-        const users = await prisma.user.findMany({
-            select: {
-                id: true,
-                userId: true,
-                name: true,
-                surname: true,
-                email: true,
-                avatarUrl: true,
-                occupation: true,
-                status: true,
-                createdAt: true,
-            },
-        });
-        logger_1.logger.info(`Fetched ${users.length} users`);
-        return res.json({ users });
+        const users = await databases.listDocuments(DB_ID, USERS_COLLECTION);
+        return res.json({ users: users.documents });
     }
     catch (err) {
-        logger_1.logger.error(`Fetch all users error: ${err.message}`, err);
+        logger_1.logger.error("Error fetching users", err);
         return res.status(500).json({ error: err.message });
     }
 };
 exports.getAllUsers = getAllUsers;
 //
-// 🔐 Signup
+// 🔐 Signup (admin-only for role=admin)
 //
 const signup = async (req, res) => {
-    const { name, surname, email, password, dob, occupation, avatarUrl } = req.body;
-    logger_1.logger.info(`Signup attempt for email: ${email}`);
+    const { name, surname, email, password, dob, occupation, avatarUrl, role = "user", nationalId, agentCode, imageUrl, } = req.body;
     try {
         if (!name || !surname || !email || !password || !dob || !occupation) {
-            logger_1.logger.warn(`Signup failed: Missing fields for ${email}`);
-            return res.status(400).json({
-                error: "Missing required fields",
-                fields: { name, surname, email, password, dob, occupation },
-            });
+            return res.status(400).json({ error: "Missing required fields" });
         }
-        const existing = await prisma.user.findUnique({
-            where: { email: email.toLowerCase() },
-        });
-        if (existing) {
-            logger_1.logger.warn(`Signup failed: Email already registered - ${email}`);
+        if (role === "admin" && req.user?.role !== "admin") {
+            return res
+                .status(403)
+                .json({ error: "Only admins can create other admins." });
+        }
+        const existing = await databases.listDocuments(DB_ID, USERS_COLLECTION, [
+            node_appwrite_1.Query.equal("email", email.toLowerCase()),
+        ]);
+        if (existing.total > 0) {
             return res.status(409).json({ error: "Email already registered" });
         }
-        const user = await prisma.user.create({
-            data: {
-                userId: (0, nanoid_1.nanoid)(12),
-                name,
-                surname,
-                email: email.toLowerCase(),
-                password: await (0, hashPassword_js_1.hashPassword)(password),
-                dob: new Date(dob),
-                occupation,
-                status: "active",
-                avatarUrl: avatarUrl || "/avatars/default.png",
-            },
-        });
-        logger_1.logger.info(`User created: ${user.userId}`);
-        return res.status(201).json({
-            user: {
-                name: user.name,
-                avatarUrl: user.avatarUrl,
-                userId: user.userId,
-            },
-        });
+        const hashed = await bcrypt_1.default.hash(password, 10);
+        const userId = (0, nanoid_1.nanoid)(12);
+        const user = await databases.createDocument(DB_ID, USERS_COLLECTION, "unique()", {
+            userId,
+            name,
+            surname,
+            email: email.toLowerCase(),
+            password: hashed,
+            dob,
+            occupation,
+            status: "active",
+            role,
+            avatarUrl: avatarUrl || "/avatars/default.png",
+            nationalId,
+            agentCode,
+            imageUrl,
+            emailVerified: false,
+            blogLikes: [],
+            propertyLikes: [],
+        }, [
+            node_appwrite_1.Permission.read(node_appwrite_1.Role.user(req.user?.id || "admin")),
+            node_appwrite_1.Permission.write(node_appwrite_1.Role.user(req.user?.id || "admin")),
+        ]);
+        return res.status(201).json({ user });
     }
     catch (err) {
-        logger_1.logger.error(`Signup error for ${email}: ${err.message}`, err);
-        return res.status(500).json({
-            error: "Internal server error",
-            details: err instanceof Error ? err.message : String(err),
-        });
+        logger_1.logger.error("Signup error", err);
+        return res.status(500).json({ error: err.message });
     }
 };
 exports.signup = signup;
@@ -97,122 +91,119 @@ exports.signup = signup;
 //
 const loginUser = async (req, res) => {
     const { email, password } = req.body;
-    logger_1.logger.info(`Login attempt for email: ${email}`);
     try {
-        if (!email || !password) {
-            logger_1.logger.warn("Login failed: Missing email or password");
-            return res.status(400).json({ error: "Email and password required" });
-        }
-        const user = await prisma.user.findUnique({ where: { email } });
+        const result = await databases.listDocuments(DB_ID, USERS_COLLECTION, [
+            node_appwrite_1.Query.equal("email", email.toLowerCase()),
+        ]);
+        const user = result.documents[0];
         if (!user || !(await bcrypt_1.default.compare(password, user.password))) {
-            logger_1.logger.warn(`Login failed: Invalid credentials for ${email}`);
             return res.status(401).json({ error: "Invalid credentials" });
         }
-        const token = jsonwebtoken_1.default.sign({ id: user.id }, JWT_SECRET, { expiresIn: "7d" });
+        const token = jsonwebtoken_1.default.sign({ id: user.$id, role: user.role }, JWT_SECRET, {
+            expiresIn: "7d",
+        });
         res.cookie("auth_token", token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
         });
-        logger_1.logger.info(`Login successful for userId: ${user.userId}`);
-        return res.json({
-            user: {
-                name: user.name,
-                avatarUrl: user.avatarUrl,
-                userId: user.userId,
-            },
-        });
+        return res.json({ user });
     }
     catch (err) {
-        logger_1.logger.error(`Login error for ${email}: ${err.message}`, err);
+        logger_1.logger.error("Login error", err);
         return res.status(500).json({ error: err.message });
     }
 };
 exports.loginUser = loginUser;
 //
-// 🔐 SSR-compatible profile fetch
+// 🔍 Get profile
 //
 const getUserProfile = async (req, res) => {
-    const userId = req.agent?.id;
-    logger_1.logger.info(`Fetching profile for userId: ${userId}`);
     try {
-        if (!userId) {
-            logger_1.logger.warn("Unauthorized profile access attempt");
-            return res.status(401).json({ error: "Unauthorized" });
-        }
-        const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: {
-                name: true,
-                avatarUrl: true,
-                userId: true,
-            },
-        });
-        if (!user) {
-            logger_1.logger.warn(`Profile not found for userId: ${userId}`);
-            return res.status(404).json({ error: "User not found" });
-        }
-        logger_1.logger.info(`Profile fetched for userId: ${userId}`);
+        const user = await databases.getDocument(DB_ID, USERS_COLLECTION, req.user?.id);
         return res.json({ user });
     }
     catch (err) {
-        logger_1.logger.error(`Profile fetch error for ${userId}: ${err.message}`, err);
+        logger_1.logger.error("Profile fetch error", err);
         return res.status(500).json({ error: err.message });
     }
 };
 exports.getUserProfile = getUserProfile;
 //
-// ✏️ Edit user
+// ✏️ Edit user (self or admin)
 //
 const editUser = async (req, res) => {
     const { id } = req.params;
-    logger_1.logger.info(`Editing user: ${id}`);
+    const updates = { ...req.body };
     try {
-        const updates = { ...req.body };
-        if (!id) {
-            logger_1.logger.warn("Edit failed: Missing user ID");
-            return res.status(400).json({ error: "Missing user ID" });
+        if (req.user?.id !== id && req.user?.role !== "admin") {
+            return res.status(403).json({ error: "Unauthorized to edit this user." });
         }
         if (updates.password) {
-            updates.password = await (0, hashPassword_js_1.hashPassword)(updates.password);
+            updates.password = await bcrypt_1.default.hash(updates.password, 10);
         }
-        const user = await prisma.user.update({
-            where: { id },
-            data: updates,
-        });
-        logger_1.logger.info(`User updated: ${user.userId}`);
-        return res.json({
-            user: {
-                name: user.name,
-                avatarUrl: user.avatarUrl,
-                userId: user.userId,
-            },
-        });
+        const user = await databases.updateDocument(DB_ID, USERS_COLLECTION, id, updates);
+        return res.json({ user });
     }
     catch (err) {
-        logger_1.logger.error(`Edit error for user ${id}: ${err.message}`, err);
+        logger_1.logger.error("Edit error", err);
         return res.status(500).json({ error: err.message });
     }
 };
 exports.editUser = editUser;
 //
-// 🗑️ Delete user
+// 🗑️ Delete user (admin only)
 //
 const deleteUser = async (req, res) => {
     const { id } = req.params;
-    logger_1.logger.info(`Deleting user: ${id}`);
     try {
-        if (!id) {
-            logger_1.logger.warn("Delete failed: Missing user ID");
-            return res.status(400).json({ error: "Missing user ID" });
+        if (req.user?.role !== "admin") {
+            return res.status(403).json({ error: "Only admins can delete users." });
         }
-        await prisma.user.delete({ where: { id } });
-        logger_1.logger.info(`User deleted: ${id}`);
+        await databases.deleteDocument(DB_ID, USERS_COLLECTION, id);
         return res.status(204).send();
     }
     catch (err) {
-        logger_1.logger.error(`Delete error for user ${id}: ${err.message}`, err);
+        logger_1.logger.error("Delete error", err);
         return res.status(500).json({ error: err.message });
     }
 };
 exports.deleteUser = deleteUser;
+const approveBlogPost = async (req, res) => {
+    const { postId } = req.body;
+    if (req.user?.role !== "admin") {
+        return res
+            .status(403)
+            .json({ error: "Only admins can approve blog posts." });
+    }
+    try {
+        const updated = await databases.updateDocument("main-db", "blogposts", postId, {
+            status: "approved",
+            approvedAt: new Date().toISOString(),
+            approvedBy: req.user.id,
+        });
+        return res.json({ post: updated });
+    }
+    catch (err) {
+        logger_1.logger.error("Blog approval error", err);
+        return res.status(500).json({ error: err.message });
+    }
+};
+exports.approveBlogPost = approveBlogPost;
+const deleteProperty = async (req, res) => {
+    const { id } = req.params;
+    if (req.user?.role !== "admin") {
+        return res
+            .status(403)
+            .json({ error: "Only admins can delete properties." });
+    }
+    try {
+        await databases.deleteDocument("main-db", "properties", id);
+        return res.status(204).send();
+    }
+    catch (err) {
+        logger_1.logger.error("Property delete error", err);
+        return res.status(500).json({ error: err.message });
+    }
+};
+exports.deleteProperty = deleteProperty;
